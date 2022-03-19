@@ -65,15 +65,31 @@ sudo mv kubectl /bin
 eksctl version
 ```
 
-## 三、创建集群并配置Dashboard图形界面
+## 三、创建EKS集群（两种场景二选一）
 
-### 1、创建集群
+创建集群时候，eksctl默认会自动生成一个新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup。如果希望使用现有VPC，请使用本章节第二种方法。
+
+### 1、创建新VPC和子网并创建EKS集群
 
 执行如下命令。注意如果是多人在同一个账号内实验，需要更改EKS集群的名字避免冲突。如果多人在不同账号内做实验，无需修改名称，默认的名称即可。
 
 ```
-eksctl create cluster --name=eksworkshop --version=1.21 --node-type m5.2xlarge --managed --alb-ingress-access --region=ap-southeast-1
+eksctl create cluster --name=eksworkshop --version=1.21 --nodes=3 --nodegroup-name=nodegroup1 --nodes-min=3 --nodes-max=6 --node-volume-size=100 --node-volume-type=gp3 --node-type m5.2xlarge --managed --alb-ingress-access --full-ecr-access --region=ap-southeast-1
 ```
+
+### 2、使用现有VPC的子网创建EKS集群
+
+如果希望使用现有VPC的Private子网，请确保本子网已经设置了正确的路由表，且VPC内包含NAT Gateway可以提供外网访问能力。
+
+运行如下命令：
+
+```
+eksctl create cluster --name=eksworkshop --version=1.21 --nodegroup-name=nodegroup1 --nodes=3 --nodes-min=3 --nodes-max=6 --node-volume-size=100 --node-volume-type=gp3 --node-type=m5.2xlarge --managed --alb-ingress-access --full-ecr-access --vpc-private-subnets=subnet-0af2e9fc3c3ab08b4,subnet-0bb5aa110443670a1,subnet-008bcabf73bea7e58 --node-private-networking --region=cn-northwest-1
+```
+
+请替换以上命令中`--vpc-private-subnets=`后的子网ID。
+
+### 3、查看创建结果
 
 此过程需要10-15分钟才可以创建完毕。执行如下命令查询节点。
 
@@ -89,7 +105,9 @@ ip-192-168-76-61.ap-southeast-1.compute.internal   Ready    <none>   5m10s   v1.
 ip-192-168-8-47.ap-southeast-1.compute.internal    Ready    <none>   5m10s   v1.20.4-eks-6b7464
 ```
 
-### 2、部署K8S原生控制面板
+## 四、创建集群并配置Dashboard图形界面
+
+### 1、部署K8S原生控制面板
 
 Github上AWS官方Workshop的实验脚本中，采用的是直接调用Github托管的yaml文件，其域名是`raw.githubusercontent.com`。在国内网络条件下访问这个网址可能会失败。
 
@@ -100,6 +118,8 @@ kubectl apply -f https://myworkshop.bitipcman.com/eks101/kubernetes-dashboard.ya
 ```
 
 部署需要等待3-5分钟。访问Dashboard的身份验证是通过token完成，执行以下命令获取token。注意需要手工替换EKS集群名称和region名称为实际操作环境。如果集群名称、Region信息不匹配，生成的token会报告401错误无法登录。
+
+### 2、登录到Dashboard
 
 ```
 aws eks get-token --cluster-name eksworkshop --region ap-southeast-1 | jq -r .status.token
@@ -136,7 +156,7 @@ kubectl delete -f https://myworkshop.bitipcman.com/eks101/kubernetes-dashboard.y
 
 本命令为可选，建议保留Dashboard，在后续实验中也可以继续通过Dashboard做监控。
 
-## 四、部署Nginx测试应用并使用Loadbalancer模式对外暴露服务
+## 五、部署Nginx测试应用并使用Loadbalancer模式对外暴露服务
 
 ### 1、创建服务
 
@@ -235,7 +255,7 @@ kubectl delete -f https://myworkshop.bitipcman.com/eks101/nginx-nlb.yaml
 
 至此服务删除完成。
 
-## 五、参考文档
+## 六、参考文档
 
 AWS GCR Workshop：
 
