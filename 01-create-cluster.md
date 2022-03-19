@@ -25,7 +25,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 即可安装好choco。然后在cmd下用管理员权限安装eksctl和jq工具（本步骤需要管理员权限）：
 
 ```
-choco install -y eksctl jq curl
+choco install -y eksctl jq curl wget
 ```
 
 很多日常软件都可以后续执行`choco install`安装。
