@@ -2,7 +2,7 @@
 
 EKS 1.21版本 @2022-03 Global Region测试通过
 
-## 一、AWS CLI准备
+## 一、AWSCLI安装和准备
 
 ### 1、客户端下载
 
@@ -28,13 +28,19 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 choco install -y eksctl jq curl wget vim 7zip
 ```
 
-很多日常软件都可以后续执行`choco install`安装。
+此外很多日常软件都可以后续执行`choco install`安装。
 
-Windows上的kubectl可从如下地址下载：
+如果您的网速不好，可能choco安装程序会失败，这是因为choco安装包后台调用的是github的服务器，可能在国内无法访问海外。因此，此时可从如下国内地址下载：
 
-[https://amazon-eks.s3.us-west-2.amazonaws.com/1.21.2/2021-07-05/bin/windows/amd64/kubectl.exe](https://amazon-eks.s3.us-west-2.amazonaws.com/1.21.2/2021-07-05/bin/windows/amd64/kubectl.exe)
+下载eksctl：
 
-下载后请将此文件复制到 `C:\windows\system32` 目录下，由此便可在任意路径下调用。
+[https://lxy-sa-software.s3.cn-north-1.amazonaws.com.cn/eksctl_Windows_amd64.zip](https://lxy-sa-software.s3.cn-north-1.amazonaws.com.cn/eksctl_Windows_amd64.zip)
+
+下载kubectl：
+
+[https://lxy-sa-software.s3.cn-north-1.amazonaws.com.cn/kubectl.exe.zip](https://lxy-sa-software.s3.cn-north-1.amazonaws.com.cn/kubectl.exe.zip)
+
+请将下载后的两个文件复制到 `C:\windows\system32` 目录下，由此便可在任意路径下调用。
 
 ### 2、Linux下安装eksctl和kubectl工具
 
