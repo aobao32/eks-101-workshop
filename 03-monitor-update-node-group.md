@@ -142,6 +142,13 @@ eksctl create nodegroup \
 --managed
 ```
 
+如果是对一个现有的VPC内的位于私有子网的EKS集群创建新的nodegroup，执行如下命令：
+
+```
+
+eksctl create nodegroup --cluster eksworkshop --name newgroup --node-type t3.2xlarge --node-volume-size=100 --node-volume-type=gp3 --nodes 3 --nodes-min 3 --nodes-max 6 --tags Name=newgroup --managed --alb-ingress-access --full-ecr-access --node-private-networking --region=ap-southeast-1
+```
+
 执行结果如下。
 
 ```
@@ -199,6 +206,8 @@ CLUSTER		NODEGROUP	STATUS	CREATED			MIN SIZE	MAX SIZE	DESIRED CAPACITY	INSTANCE 
 eksworkshop	newgroup	ACTIVE	2021-07-01T14:42:09Z	3		6		3			t3.2xlarge	AL2_x86_64	eks-3ebd3142-8885-3e09-7bde-95be81eeabc5
 eksworkshop	ng-c61de5a8	ACTIVE	2021-07-01T12:31:40Z	2		6		3			m5.xlarge	AL2_x86_64	eks-40bd3106-cd37-5503-41ab-da2f4e060a3e
 ```
+
+另外需要注意，新创建的node group还需要额外配置Cloudwatch权限才可以完成监控。
 
 ### 2、删除旧的nodegroup
 
