@@ -73,7 +73,7 @@ eksctl version
 
 ## 三、创建EKS集群（两种场景二选一）
 
-创建集群时候，eksctl默认会自动生成一个新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup。如果希望使用现有VPC，请使用本章节第二种方法。
+创建集群时候，eksctl默认会自动生成一个新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup。如果希望使用新VPc，请参考本章节小标题1。如果希望使用现有VPC，请使用本章节小标题2。
 
 ### 1、创建新VPC和子网并创建EKS集群
 
@@ -85,7 +85,19 @@ eksctl create cluster --name=eksworkshop --version=1.21 --nodes=3 --nodegroup-na
 
 ### 2、使用现有VPC的子网创建EKS集群
 
-如果希望使用现有VPC的Private子网，请确保本子网已经设置了正确的路由表，且VPC内包含NAT Gateway可以提供外网访问能力。
+如果希望使用现有VPC的Private子网，请确保本子网已经设置了正确的路由表，且VPC内包含NAT Gateway可以提供外网访问能力。然后接下来为其打标签。
+
+找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
+
+- 标签名称：`kubernetes.io/role/elb`，值：`1`
+- 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
+
+接下来进入Private subnet，为其添加标签：
+
+- 标签名称：`kubernetes.io/role/internal-elb`，值：`1`
+- 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
+
+接下来请重复以上工作，三个AZ的子网都实施相同的配置，注意第一项标签值都是1。
 
 运行如下命令：
 
