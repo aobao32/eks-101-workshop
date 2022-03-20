@@ -143,10 +143,18 @@ validatingwebhookconfiguration.admissionregistration.k8s.io/cert-manager-webhook
 
 ### 5、部署ALB Ingress
 
+下载配置文件。
+
+```
+wget https://myworkshop.bitipcman.com/eks101/v2_3_1_full.yaml
+```
+
+下载后用编辑器打开，找到其中的`--cluster-name=your-cluster-name`部分，将eks集群名称`your-cluster-name`改成与前文一致的名称，例如本文是`eksworkshop`的名称。
+
 执行如下命令：
 
 ```
-kubectl apply -f https://myworkshop.bitipcman.com/eks101/v2_3_1_full.yaml
+kubectl apply -f v2_3_1_full.yaml
 ```
 
 返回信息如下：
