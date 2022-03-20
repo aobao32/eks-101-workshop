@@ -84,7 +84,7 @@ eksctl create cluster --name=eksworkshop --version=1.21 --nodes=3 --nodegroup-na
 运行如下命令：
 
 ```
-eksctl create cluster --name=eksworkshop --version=1.21 --nodegroup-name=nodegroup1 --nodes=3 --nodes-min=3 --nodes-max=6 --node-volume-size=100 --node-volume-type=gp3 --node-type=m5.2xlarge --managed --alb-ingress-access --full-ecr-access --vpc-private-subnets=subnet-0af2e9fc3c3ab08b4,subnet-0bb5aa110443670a1,subnet-008bcabf73bea7e58 --node-private-networking --region=cn-northwest-1
+eksctl create cluster --name=eksworkshop --version=1.21 --nodegroup-name=nodegroup1 --nodes=3 --nodes-min=3 --nodes-max=6 --node-volume-size=100 --node-volume-type=gp3 --node-type=m5.2xlarge --managed --alb-ingress-access --full-ecr-access --vpc-private-subnets=subnet-0af2e9fc3c3ab08b4,subnet-0bb5aa110443670a1,subnet-008bcabf73bea7e58 --node-private-networking --region=ap-southeast-1
 ```
 
 请替换以上命令中`--vpc-private-subnets=`后的子网ID。

@@ -1,0 +1,62 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mydemo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: mydemo
+  name: phpdocker
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: phpdocker
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: phpdocker
+    spec:
+      containers:
+      - image: 420029960748.dkr.ecr.cn-northwest-1.amazonaws.com.cn/phpdemo:2
+        imagePullPolicy: Always
+        name: phpdocker
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: mydemo
+  name: phpdocker
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: phpdocker
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: mydemo
+  name: ingress-phpdocker
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  rules:
+    - http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: phpdocker
+              port:
+                number: 80
