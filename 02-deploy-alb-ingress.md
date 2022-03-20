@@ -92,7 +92,7 @@ eksctl create iamserviceaccount --cluster=eksworkshop --namespace=kube-system --
 执行如下命令：
 
 ```
-kubectl apply --validate=false -f https://myworkshop.bitipcman.com/eks101/cert-manager.yaml
+kubectl apply --validate=false -f https://myworkshop.bitipcman.com/eks101/cert-manager_v1.7.1.yaml
 ```
 
 返回信息创建成功：
@@ -141,12 +141,12 @@ validatingwebhookconfiguration.admissionregistration.k8s.io/cert-manager-webhook
 
 稍等几分钟让服务完全启动。
 
-### 5、部署ELB Ingress
+### 5、部署ALB Ingress
 
 执行如下命令：
 
 ```
-kubectl apply -f https://myworkshop.bitipcman.com/eks101/v2_2_0_full.yaml
+kubectl apply -f https://myworkshop.bitipcman.com/eks101/v2_3_1_full.yaml
 ```
 
 返回信息如下：
