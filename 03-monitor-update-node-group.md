@@ -12,15 +12,9 @@ eksctl utils update-cluster-logging --enable-types all --cluster eksworkshop --a
 
 ### 1、添加IAM角色
 
-进入IAM服务界面，找到Role角色界面，搜索关键字是 `eksctl-集群名称`，一共可以搜索出来三个，类似格式如下：
+进入IAM服务界面，找到Role角色界面，搜索关键字是 `eksctl-集群名称-nodegroup-node-NodeInstanceRole`，获得搜索结果：`eksctl-eksworkshop-nodegroup-node-NodeInstanceRole-1IZI5PCPB5OQP`。点击这个角色，为其增加策略。
 
-- eksctl-eks-demo-zhy-nodegroup-ng-NodeInstanceRole-1QOHRI2YXMUZS
-- eksctl-eks-demo-zhy-cluster-ServiceRole-JHRG5AXPY20V
-- eksctl-eks-demo-zhy-addon-iamserviceaccount-Role1-1OGCKAYIHMXLQ
-
-找到如下一个：`eksctl-eksworkshop-nodegroup-node-NodeInstanceRole-BROAE7R89WUL` ，带有`nodegroup-node-NodeInstanceRole`就是EC2节点的IAM Role
-
-编辑这三个角色，每个角色都覆盖挂载一个新策略，将`CloudWatchAgentServerPolicy` 加入其中，保存退出。
+点击角色后，在第一个标签页`Permissions`下，点击右上角的`Add permissions`，在下拉框中点击`Add policies`，然后在策略搜索框中查找`CloudWatchAgentServerPolicy`。找到这个策略后，选中这个策略，点击`Add policies`加入其中。
 
 ### 2、部署配置文件
 
@@ -41,7 +35,7 @@ curl https://raw.githubusercontent.com/aws-samples/amazon-cloudwatch-container-i
 当在中国区部署时候，中国区的节点可能无法访问到github的文件服务器，可以查看下用curl访问raw.githubusercontent.com是否能完成下载。如果缺失无法访问，那么可以通过如下链接使用中国区S3上的文件进行部署。
 
 ```
-ClusterName=eks-demo-zhy
+ClusterName=eksworkshop
 RegionName=cn-northwest-1
 FluentBitHttpPort='2020'
 FluentBitReadFromHead='Off'
