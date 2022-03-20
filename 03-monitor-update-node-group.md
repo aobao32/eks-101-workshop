@@ -3,12 +3,12 @@
 ## 一、开启EKS管理平面的CloudWatch日志
 
 ```
-eksctl utils update-cluster-logging --enable-types all
+eksctl utils update-cluster-logging --enable-types all --cluster eksworkshop --approve
 ```
 
 ## 二、启用CloudWatch Container Insight
 
-注意：本功能在中国区已经发布，2021-10测试通过。
+注意：2021年之前本功能尚未在中国区发布，2021年10月在EKS 1.19上测试通过，2022年3月在EKS 1.21上测试通过。
 
 ### 1、添加IAM角色
 
