@@ -16,7 +16,7 @@ eksctl utils update-cluster-logging --enable-types all --cluster eksworkshop --a
 
 点击角色后，在第一个标签页`Permissions`下，点击右上角的`Add permissions`，在下拉框中点击`Add policies`，然后在策略搜索框中查找`CloudWatchAgentServerPolicy`。找到这个策略后，选中这个策略，点击`Add policies`加入其中。
 
-### 2、部署配置文件
+### 2、部署配置文件（注意这一段需要Linux的bash来执行，Windows下cmd无法执行）
 
 执行如下命令，注意替换其中的Region和集群名称。
 
@@ -122,7 +122,7 @@ CLUSTER		NODEGROUP	STATUS	CREATED			MIN SIZE	MAX SIZE	DESIRED CAPACITY	INSTANCE 
 eksworkshop	ng-c61de5a8	ACTIVE	2021-07-01T12:31:40Z	2		6		3			m5.xlarge	AL2_x86_64	eks-40bd3106-cd37-5503-41ab-da2f4e060a3e
 ```
 
-## 三、调整节点组EC2规格
+## 四、调整节点组EC2规格
 
 前文创建集群使用的是m5.xlarge规格，4vCPU/16GB内存，EKS不能对现有的nodegroup直接配置。因此，为更换规格需要在当前集群下新建一个nodegroup，并使用新的EC2规格。随后再删除旧的nodegroup，pod也将会自动在新nodegroup上拉起。整个过程不影响应用访问。
 
@@ -145,8 +145,7 @@ eksctl create nodegroup \
 如果是对一个现有的VPC内的位于私有子网的EKS集群创建新的nodegroup，执行如下命令：
 
 ```
-
-eksctl create nodegroup --cluster eksworkshop --name newgroup --node-type t3.2xlarge --node-volume-size=100 --node-volume-type=gp3 --nodes 3 --nodes-min 3 --nodes-max 6 --tags Name=newgroup --managed --alb-ingress-access --full-ecr-access --node-private-networking --region=ap-southeast-1
+eksctl create nodegroup --cluster eksworkshop --name newgroup --node-type t3.xlarge --node-volume-size=100 --node-volume-type=gp3 --nodes 3 --nodes-min 3 --nodes-max 6 --tags Name=newgroup --managed --alb-ingress-access --full-ecr-access --node-private-networking --region=ap-southeast-1
 ```
 
 执行结果如下。
