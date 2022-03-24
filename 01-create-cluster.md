@@ -1,6 +1,6 @@
 # 实验一、创建EKS集群
 
-EKS 1.21版本 @2022-03 Global Region测试通过
+EKS 1.21版本 @2022-03 Global区域和中国区域测试通过
 
 ## 一、AWSCLI安装和准备
 
