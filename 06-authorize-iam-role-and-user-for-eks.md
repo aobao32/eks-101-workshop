@@ -119,7 +119,7 @@ metadata:
 
 ```
   mapUsers: | 
-    - userarn: arn:aws-cn:iam::11122223333:user/newusername 
+    - userarn: arn:aws-cn:iam::420029960748:user/newusername 
       username: newusername 
       groups: 
         - system:masters
@@ -141,7 +141,7 @@ data:
       rolearn: arn:aws-cn:iam::420029960748:role/eksctl-eksworkshopbj-nodegroup-no-NodeInstanceRole-BGKUROWI9QA5
       username: system:node:{{EC2PrivateDNSName}}
   mapUsers: | 
-    - userarn: arn:aws-cn:iam::11122223333:user/newusername 
+    - userarn: arn:aws-cn:iam::420029960748:user/newusername 
       username: newusername 
       groups: 
         - system:masters
