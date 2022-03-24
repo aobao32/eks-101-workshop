@@ -20,7 +20,7 @@ spec:
         app.kubernetes.io/name: phpdocker
     spec:
       containers:
-      - image: 420029960748.dkr.ecr.cn-northwest-1.amazonaws.com.cn/phpdemo:2
+      - image: 420029960748.dkr.ecr.cn-northwest-1.amazonaws.com.cn/phpdemo:4
         imagePullPolicy: Always
         name: phpdocker
         ports:
