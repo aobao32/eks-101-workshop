@@ -13,3 +13,5 @@ EKS101动手实验：
 [实验5、使用EC2 Spot实例](https://github.com/aobao32/eks-101-workshop/blob/main/05-Use-spot-instance.md)
 
 [实验6、将IAM用户或角色授权为EKS集群管理员](https://github.com/aobao32/eks-101-workshop/blob/main/06-authorize-iam-role-and-user-for-eks.md)
+
+[实验7、为Node节点使用Containerd运行时](https://github.com/aobao32/eks-101-workshop/blob/main/07-containerd-runtime.md)

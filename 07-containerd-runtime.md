@@ -1,4 +1,4 @@
-# 六、在EKS 1.21版本上创建NodeGroup使用Containerd替代Docker
+# 实验七、在EKS 1.21版本上创建NodeGroup使用Containerd替代Docker
 
 ## 一、创建集群
 
