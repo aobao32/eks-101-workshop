@@ -1,6 +1,8 @@
-# 实验二、部署AWS ELB Ingress (v2.x)
+# 实验二、部署AWS Load Balancer Ingress Controller
 
-## 一、部署ELB Ingress
+EKS 1.22版本 @2022-04 Global区域和中国区域测试通过
+
+## 一、部署AWS Load Balancer Ingress Controller
 
 ### 1、为EKS生成IAM的OIDC授权
 
@@ -10,16 +12,7 @@
 eksctl utils associate-iam-oidc-provider --region ap-southeast-1 --cluster eksworkshop --approve
 ```
 
-返回结果如下表示成功。
-
-```
-2022-03-19 22:39:28 [ℹ]  eksctl version 0.87.0
-2022-03-19 22:39:28 [ℹ]  using region ap-southeast-1
-2022-03-19 22:39:29 [ℹ]  will create IAM Open ID Connect provider for cluster "eksworkshop" in "ap-southeast-1"
-2022-03-19 22:39:30 [✔]  created IAM Open ID Connect provider for cluster "eksworkshop" in "ap-southeast-1"
-```
-
-### 2、创建IAM Policy（策略）
+### 2、创建IAM Policy（请注意区分Global区域和中国区配置文件）
 
 下载已经预先配置好的IAM策略到本地，保持iam-policy.json的文件名。另外请注意，本文使用的ALB ingress是2.x，因此IAM policy与之前1.x的版本不通用，请注意部署时候才用正确的版本。
 
@@ -36,7 +29,7 @@ wget https://myworkshop.bitipcman.com/eks101/iam_policy-cn.json
 创建IAM Policy，执行如下命令。注意上一步下载的文件如果是中国区的版本，注意文件名的区别。
 
 ```
-aws iam create-policy --policy-name ALBIngressControllerIAMPolicy --policy-document file://iam_policy.json
+aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
 ```
 
 返回如下结果表示成功。
@@ -44,55 +37,39 @@ aws iam create-policy --policy-name ALBIngressControllerIAMPolicy --policy-docum
 ```
 {
     "Policy": {
-        "PolicyName": "ALBIngressControllerIAMPolicy",
-        "PolicyId": "ANPARHG64UFG4YTWDYLRR",
-        "Arn": "arn:aws:iam::084219306317:policy/ALBIngressControllerIAMPolicy",
+        "PolicyName": "AWSLoadBalancerControllerIAMPolicy",
+        "PolicyId": "ANPAR57Y4KKLCBZJGMRIT",
+        "Arn": "arn:aws:iam::133129065110:policy/AWSLoadBalancerControllerIAMPolicy",
         "Path": "/",
         "DefaultVersionId": "v1",
         "AttachmentCount": 0,
         "PermissionsBoundaryUsageCount": 0,
         "IsAttachable": true,
-        "CreateDate": "2022-03-19T14:41:33+00:00",
-        "UpdateDate": "2022-03-19T14:41:33+00:00"
+        "CreateDate": "2022-04-09T03:48:58+00:00",
+        "UpdateDate": "2022-04-09T03:48:58+00:00"
     }
 }
+(END)
 ```
 
 此时需要记住这个新建Policy的ARN ID，下一步创建角色时候将会使用。注意中国区和Global区域的ARN标识是不同的，在中国区ARN中的标识是`aws-cn`，多含一个 `-cn` 后缀。
 
 ### 3、创建EKS Service Account
 
-执行如下命令。请替换cluster、attach-policy-arn参数为本次实验环境的参数。其他参数保持不变。
+执行如下命令。请替换cluster、attach-policy-arn、region等参数为本次实验环境的参数。其他参数保持不变。
 
 ```
-eksctl create iamserviceaccount --cluster=eksworkshop --namespace=kube-system --name=aws-load-balancer-controller --attach-policy-arn=arn:aws:iam::084219306317:policy/ALBIngressControllerIAMPolicy --override-existing-serviceaccounts --approve
+eksctl create iamserviceaccount --cluster=eksworkshop --namespace=kube-system --name=aws-load-balancer-controller --attach-policy-arn=arn:aws:iam::133129065110:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --region ap-southeast-1 --approve
 ```
 
-本步骤可能需要1-3分钟时间。返回以下结果表示部署成功。
+本步骤可能需要1-3分钟时间。
 
-```
-2022-03-19 22:44:34 [ℹ]  eksctl version 0.87.0
-2022-03-19 22:44:34 [ℹ]  using region ap-southeast-1
-2022-03-19 22:44:35 [ℹ]  1 iamserviceaccount (kube-system/aws-load-balancer-controller) was included (based on the include/exclude rules)
-2022-03-19 22:44:35 [!]  metadata of serviceaccounts that exist in Kubernetes will be updated, as --override-existing-serviceaccounts was set
-2022-03-19 22:44:35 [ℹ]  1 task: {
-    2 sequential sub-tasks: {
-        create IAM role for serviceaccount "kube-system/aws-load-balancer-controller",
-        create serviceaccount "kube-system/aws-load-balancer-controller",
-    } }2022-03-19 22:44:35 [ℹ]  building iamserviceaccount stack "eksctl-eksworkshop-addon-iamserviceaccount-kube-system-aws-load-balancer-controller"
-2022-03-19 22:44:36 [ℹ]  deploying stack "eksctl-eksworkshop-addon-iamserviceaccount-kube-system-aws-load-balancer-controller"
-2022-03-19 22:44:36 [ℹ]  waiting for CloudFormation stack "eksctl-eksworkshop-addon-iamserviceaccount-kube-system-aws-load-balancer-controller"
-2022-03-19 22:44:53 [ℹ]  waiting for CloudFormation stack "eksctl-eksworkshop-addon-iamserviceaccount-kube-system-aws-load-balancer-controller"
-2022-03-19 22:45:09 [ℹ]  waiting for CloudFormation stack "eksctl-eksworkshop-addon-iamserviceaccount-kube-system-aws-load-balancer-controller"
-2022-03-19 22:45:11 [ℹ]  created serviceaccount "kube-system/aws-load-balancer-controller"
-```
-
-### 4、部署证书服务
+### 4、部署证书服务（v1.8.1）
 
 执行如下命令：
 
 ```
-kubectl apply --validate=false -f https://myworkshop.bitipcman.com/eks101/cert-manager_v1.7.1.yaml
+kubectl apply --validate=false -f https://myworkshop.bitipcman.com/eks101/cert-manager_v1.8.1.yaml
 ```
 
 返回信息创建成功：
@@ -141,12 +118,27 @@ validatingwebhookconfiguration.admissionregistration.k8s.io/cert-manager-webhook
 
 稍等几分钟让服务完全启动。
 
-### 5、部署ALB Ingress
+### 5、部署CRDS（本步骤为1.22版本必须，1.21或更低版本请跳过）
+
+EKS 1.22版本使用AWS Load Balancer Ingress Controller需要事先部署CRDS。
+
+```
+kubectl apply -f https://myworkshop.bitipcman.com/eks101/crds.yaml
+```
+
+返回如下信息表示成功：
+
+```
+customresourcedefinition.apiextensions.k8s.io/ingressclassparams.elbv2.k8s.aws created
+customresourcedefinition.apiextensions.k8s.io/targetgroupbindings.elbv2.k8s.aws created
+```
+
+### 6、部署AWS Load Balancer Ingress Controller（v2.4.1）
 
 下载配置文件。
 
 ```
-wget https://myworkshop.bitipcman.com/eks101/v2_3_1_full.yaml
+wget https://myworkshop.bitipcman.com/eks101/v2_4_1_full.yaml
 ```
 
 下载后用编辑器打开，找到其中的`--cluster-name=your-cluster-name`部分，将eks集群名称`your-cluster-name`改成与前文一致的名称，例如本文是`eksworkshop`的名称。
@@ -154,16 +146,14 @@ wget https://myworkshop.bitipcman.com/eks101/v2_3_1_full.yaml
 执行如下命令：
 
 ```
-kubectl apply -f v2_3_1_full.yaml
+kubectl apply -f v2_4_1_full.yaml
 ```
 
 返回信息如下：
 
 ```
-customresourcedefinition.apiextensions.k8s.io/ingressclassparams.elbv2.k8s.aws created
-customresourcedefinition.apiextensions.k8s.io/targetgroupbindings.elbv2.k8s.aws created
-Warning: resource serviceaccounts/aws-load-balancer-controller is missing the kubectl.kubernetes.io/last-applied-configuration annotation which is required by kubectl apply. kubectl apply should only be used on resources created declaratively by either kubectl create --save-config or kubectl apply. The missing annotation will be patched automatically.
-serviceaccount/aws-load-balancer-controller configured
+customresourcedefinition.apiextensions.k8s.io/ingressclassparams.elbv2.k8s.aws configured
+customresourcedefinition.apiextensions.k8s.io/targetgroupbindings.elbv2.k8s.aws configured
 role.rbac.authorization.k8s.io/aws-load-balancer-controller-leader-election-role created
 clusterrole.rbac.authorization.k8s.io/aws-load-balancer-controller-role created
 rolebinding.rbac.authorization.k8s.io/aws-load-balancer-controller-leader-election-rolebinding created
@@ -174,13 +164,13 @@ certificate.cert-manager.io/aws-load-balancer-serving-cert created
 issuer.cert-manager.io/aws-load-balancer-selfsigned-issuer created
 mutatingwebhookconfiguration.admissionregistration.k8s.io/aws-load-balancer-webhook created
 validatingwebhookconfiguration.admissionregistration.k8s.io/aws-load-balancer-webhook created
+ingressclassparams.elbv2.k8s.aws/alb created
+ingressclass.networking.k8s.io/alb created
 ```
 
-返回信息中包含Warning提示如上，可以忽略，会自动修复。
+### 7、检查部署结果
 
-### 6、检查部署结果
-
-执行如下命令检查部署结果：
+在创建AWS Load Balancer Ingress Controller后，等待几分钟启动完成，执行如下命令检查部署结果：
 
 ```
 kubectl get deployment -n kube-system aws-load-balancer-controller
@@ -190,12 +180,12 @@ kubectl get deployment -n kube-system aws-load-balancer-controller
 
 ```
 NAME                           READY   UP-TO-DATE   AVAILABLE   AGE
-aws-load-balancer-controller   1/1     1            1           3m26s
+aws-load-balancer-controller   1/1     1            1           3m2s
 ```
 
-表示部署成功。
+表示部署成功。如果READY位置状态是0/1，则表示启动失败，需要检查前几个步骤的输出信息是否有报错。
 
-此时只是配置好了EKS Ingress所需要的Controller，如果立刻去查看EC2控制台的ELB界面，是看不到ALB的。接下来的步骤部署应用时候将随应用一起创建ALB。
+此时只是配置好了AWS Load Balancer Ingress Controller所需要的Controller对应的Pod，如果现在去查看EC2控制台的ELB界面，是看不到有负载均衡被创建出来的。接下来的步骤部署应用时候将随应用一起创建ALB。
 
 ## 二、部署2048应用
 

@@ -1,6 +1,6 @@
 # 实验一、创建EKS集群
 
-EKS 1.21版本 @2022-03 Global区域和中国区域测试通过
+EKS 1.22版本 @2022-04 Global区域和中国区域测试通过
 
 ## 一、AWSCLI安装和准备
 
@@ -13,6 +13,8 @@ EKS 1.21版本 @2022-03 Global区域和中国区域测试通过
 安装CLI完毕后，配置进入AWS控制台，创建IAM用户，生成AKSK密钥。安装好AWSCLI，并填写正确的AKSK。同时，在命令`aws configure`的最后一步配置region的时候，设置region为本次实验的`ap-southeast-1`。
 
 ## 二、安装EKS客户端（三个OS类型根据实验者选择其一）
+
+请注意，eksctl版本0.92以下版本只支持创建EKS版本1.21。可使用`eksctl version`命令查询自己的版本。如果需要创建EKS 1.22版本集群，请安装eksctl客户端或升级到0.92版本。
 
 ### 1、Windows下安装eksctl和kubectl工具
 
@@ -79,11 +81,67 @@ eksctl version
 
 执行如下命令。注意如果是多人在同一个账号内实验，需要更改EKS集群的名字避免冲突。如果多人在不同账号内做实验，无需修改名称，默认的名称即可。
 
+编辑配置文件`newvpc.yaml`，内容如下：
+
 ```
-eksctl create cluster --name=eksworkshop --version=1.21 --nodes=3 --nodegroup-name=nodegroup1 --nodes-min=3 --nodes-max=6 --node-volume-size=100 --node-volume-type=gp3 --node-type m5.2xlarge --managed --alb-ingress-access --full-ecr-access --region=ap-southeast-1
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop
+  region: ap-southeast-1
+  version: "1.22"
+
+vpc:
+  clusterEndpoints:
+    publicAccess:  true
+    privateAccess: true
+
+kubernetesNetworkConfig:
+  serviceIPv4CIDR: 10.50.0.0/24
+
+managedNodeGroups:
+  - name: managed-ng
+    labels:
+      Name: managed-ng
+    instanceType: t3.2xlarge
+    minSize: 3
+    desiredCapacity: 3
+    maxSize: 6
+    privateNetworking: true
+    volumeType: gp3
+    volumeSize: 100
+    tags:
+      nodegroup-name: ng1
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        certManager: true
+        efs: true
+        albIngress: true
+        xRay: true
+        cloudWatch: true
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+    logRetentionInDays: 30
 ```
 
+请替换以上配置文件中集群名称、region为实际使用的地区。
+
+执行如下命令创建集群。
+
+```
+eksctl create cluster -f newvpc.yaml
+```
+
+创建完成。
+
 ### 2、使用现有VPC的子网创建EKS集群
+
+#### （1）给EKS要使用的Subnet子网打标签
 
 如果希望使用现有VPC的Private子网，请确保本子网已经设置了正确的路由表，且VPC内包含NAT Gateway可以提供外网访问能力。然后接下来为其打标签。
 
@@ -99,13 +157,70 @@ eksctl create cluster --name=eksworkshop --version=1.21 --nodes=3 --nodegroup-na
 
 接下来请重复以上工作，三个AZ的子网都实施相同的配置，注意第一项标签值都是1。
 
-运行如下命令：
+#### （2）创建配置文件
+
+编辑配置文件`existingsubnet.yaml`，内容如下：
 
 ```
-eksctl create cluster --name=eksworkshop --version=1.21 --nodegroup-name=nodegroup1 --nodes=3 --nodes-min=3 --nodes-max=6 --node-volume-size=100 --node-volume-type=gp3 --node-type=m5.2xlarge --managed --alb-ingress-access --full-ecr-access --vpc-private-subnets=subnet-0af2e9fc3c3ab08b4,subnet-0bb5aa110443670a1,subnet-008bcabf73bea7e58 --node-private-networking --region=ap-southeast-1
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop
+  region: ap-southeast-1
+  version: "1.22"
+
+vpc:
+  clusterEndpoints:
+    publicAccess:  true
+    privateAccess: true
+  subnets:
+    private:
+      ap-southeast-1a: { id: subnet-0af2e9fc3c3ab08b4 }
+      ap-southeast-1b: { id: subnet-0bb5aa110443670a1 }
+      ap-southeast-1c: { id: subnet-008bcabf73bea7e58 }
+
+kubernetesNetworkConfig:
+  serviceIPv4CIDR: 10.50.0.0/24
+
+managedNodeGroups:
+  - name: managed-ng
+    labels:
+      Name: managed-ng
+    instanceType: t3.2xlarge
+    minSize: 3
+    desiredCapacity: 3
+    maxSize: 6
+    privateNetworking: true
+    volumeType: gp3
+    volumeSize: 100
+    tags:
+      nodegroup-name: managed-ng
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        certManager: true
+        efs: true
+        albIngress: true
+        xRay: true
+        cloudWatch: true
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+    logRetentionInDays: 30
 ```
 
-请替换以上命令中`--vpc-private-subnets=`后的子网ID。
+请替换以上配置文件中集群名称、region、子网ID为实际使用的地区。
+
+执行如下命令创建集群。
+
+```
+eksctl create cluster -f existingsubnet.yaml
+```
+
+创建完成。
 
 ### 3、查看创建结果
 
