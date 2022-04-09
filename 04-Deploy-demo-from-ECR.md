@@ -26,7 +26,7 @@ docker push 420029960748.dkr.ecr.cn-northwest-1.amazonaws.com.cn/phpdocker:1
 
 ## 二、编写yaml文件
 
-格式如下。注意替换里边的region名称。
+格式如下。注意替换里边的ECR容器镜像的完整URI地址，包含region、名称和版本号。
 
 ```
 ---

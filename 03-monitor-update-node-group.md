@@ -24,7 +24,7 @@ curl https://myworkshop.bitipcman.com/eks101/cwagent-fluent-bit-quickstart.yaml 
 
 进入Cloudwatch对应region界面，从左侧选择Container Insight，从右侧选择`View performance dashboards `，即可进入Container Insight。
 
-## 三、调整节点组数量
+## 二、调整节点组数量
 
 前一步实验创建的集群时候没有指定节点数量，默认是2个节点，且系统会自动生成nodegroup，并分配nodegroup id。下面对这个nodegroup做扩容。
 
@@ -101,13 +101,13 @@ CLUSTER		NODEGROUP	STATUS	CREATED			MIN SIZE	MAX SIZE	DESIRED CAPACITY	INSTANCE 
 eksworkshop	managed-ng	ACTIVE	2022-04-09T04:34:33Z	3		9		6			t3.2xlarge	AL2_x86_64	eks-managed-ng-64c0064d-112b-eeb2-f9be-87b0414216d7	managed
 ```
 
-## 四、调整节点组EC2规格
+## 三、调整节点组EC2规格
 
 前文创建集群使用node节点不能直接更换规格。为此，需要在当前集群下新建一个nodegroup，并使用新的EC2规格，随后再删除旧的nodegroup。此时pod也将会自动在新nodegroup上拉起。整个过程不影响应用访问。
 
 ### 1、新建使用新的EC2规格的nodegroup
 
-编辑如下内容，并保存为`newnodegroup.yaml`文件。
+编辑如下内容，并保存为`newnodegroup.yaml`文件。需要注意的是，如果新创建的Nodegroup在Public Subnet内，这直接使用如下内容即可。如果新创建的Nodegroup在Private Subnet内，那么请增加如下一行`privateNetworking: true`到配置文件中。添加的位置在`volumeSize`的下一行即可。
 
 ```
 apiVersion: eksctl.io/v1alpha5
