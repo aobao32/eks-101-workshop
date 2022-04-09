@@ -6,26 +6,18 @@ metadata:
   region: ap-southeast-1
   version: "1.22"
 
-vpc:
-  clusterEndpoints:
-    publicAccess:  true
-    privateAccess: true
-
-kubernetesNetworkConfig:
-  serviceIPv4CIDR: 10.50.0.0/24
-
 managedNodeGroups:
-  - name: managed-ng
+  - name: newng
     labels:
-      Name: managed-ng
-    instanceType: t3.2xlarge
+      Name: newng
+    instanceType: m5.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
     volumeType: gp3
     volumeSize: 100
     tags:
-      nodegroup-name: managed-ng
+      nodegroup-name: newng
     iam:
       withAddonPolicies:
         imageBuilder: true
@@ -35,8 +27,3 @@ managedNodeGroups:
         albIngress: true
         xRay: true
         cloudWatch: true
-
-cloudWatch:
-  clusterLogging:
-    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
-    logRetentionInDays: 30

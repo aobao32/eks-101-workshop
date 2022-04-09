@@ -108,7 +108,6 @@ managedNodeGroups:
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
-    privateNetworking: true
     volumeType: gp3
     volumeSize: 100
     tags:

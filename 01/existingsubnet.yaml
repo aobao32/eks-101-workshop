@@ -10,6 +10,11 @@ vpc:
   clusterEndpoints:
     publicAccess:  true
     privateAccess: true
+  subnets:
+    private:
+      ap-southeast-1a: { id: subnet-0af2e9fc3c3ab08b4 }
+      ap-southeast-1b: { id: subnet-0bb5aa110443670a1 }
+      ap-southeast-1c: { id: subnet-008bcabf73bea7e58 }
 
 kubernetesNetworkConfig:
   serviceIPv4CIDR: 10.50.0.0/24
@@ -22,6 +27,7 @@ managedNodeGroups:
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
+    privateNetworking: true
     volumeType: gp3
     volumeSize: 100
     tags:
