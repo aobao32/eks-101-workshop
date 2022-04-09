@@ -75,16 +75,17 @@ kubectl apply --validate=false -f https://myworkshop.bitipcman.com/eks101/cert-m
 返回信息创建成功：
 
 ```
+namespace/cert-manager created
 customresourcedefinition.apiextensions.k8s.io/certificaterequests.cert-manager.io created
 customresourcedefinition.apiextensions.k8s.io/certificates.cert-manager.io created
 customresourcedefinition.apiextensions.k8s.io/challenges.acme.cert-manager.io created
 customresourcedefinition.apiextensions.k8s.io/clusterissuers.cert-manager.io created
 customresourcedefinition.apiextensions.k8s.io/issuers.cert-manager.io created
 customresourcedefinition.apiextensions.k8s.io/orders.acme.cert-manager.io created
-namespace/cert-manager created
 serviceaccount/cert-manager-cainjector created
 serviceaccount/cert-manager created
 serviceaccount/cert-manager-webhook created
+configmap/cert-manager-webhook created
 clusterrole.rbac.authorization.k8s.io/cert-manager-cainjector created
 clusterrole.rbac.authorization.k8s.io/cert-manager-controller-issuers created
 clusterrole.rbac.authorization.k8s.io/cert-manager-controller-clusterissuers created
@@ -94,6 +95,9 @@ clusterrole.rbac.authorization.k8s.io/cert-manager-controller-challenges created
 clusterrole.rbac.authorization.k8s.io/cert-manager-controller-ingress-shim created
 clusterrole.rbac.authorization.k8s.io/cert-manager-view created
 clusterrole.rbac.authorization.k8s.io/cert-manager-edit created
+clusterrole.rbac.authorization.k8s.io/cert-manager-controller-approve:cert-manager-io created
+clusterrole.rbac.authorization.k8s.io/cert-manager-controller-certificatesigningrequests created
+clusterrole.rbac.authorization.k8s.io/cert-manager-webhook:subjectaccessreviews created
 clusterrolebinding.rbac.authorization.k8s.io/cert-manager-cainjector created
 clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-issuers created
 clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-clusterissuers created
@@ -101,6 +105,9 @@ clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-certificate
 clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-orders created
 clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-challenges created
 clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-ingress-shim created
+clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-approve:cert-manager-io created
+clusterrolebinding.rbac.authorization.k8s.io/cert-manager-controller-certificatesigningrequests created
+clusterrolebinding.rbac.authorization.k8s.io/cert-manager-webhook:subjectaccessreviews created
 role.rbac.authorization.k8s.io/cert-manager-cainjector:leaderelection created
 role.rbac.authorization.k8s.io/cert-manager:leaderelection created
 role.rbac.authorization.k8s.io/cert-manager-webhook:dynamic-serving created
@@ -218,21 +225,22 @@ kubectl describe ingress -n game-2048
 
 ```
 Name:             ingress-2048
+Labels:           <none>
 Namespace:        game-2048
-Address:          k8s-game2048-ingress2-330cc1efad-50734125.ap-southeast-1.elb.amazonaws.com
+Address:          k8s-game2048-ingress2-2810c0c2ad-1338588716.ap-southeast-1.elb.amazonaws.com
 Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
 Rules:
   Host        Path  Backends
   ----        ----  --------
-  *
-              /   service-2048:80 (192.168.3.242:80,192.168.35.143:80,192.168.54.95:80)
+  *           
+              /   service-2048:80 (192.168.117.236:80,192.168.150.66:80,192.168.188.76:80)
 Annotations:  alb.ingress.kubernetes.io/scheme: internet-facing
               alb.ingress.kubernetes.io/target-type: ip
               kubernetes.io/ingress.class: alb
 Events:
   Type    Reason                  Age   From     Message
   ----    ------                  ----  ----     -------
-  Normal  SuccessfullyReconciled  4m4s  ingress  Successfully reconciled
+  Normal  SuccessfullyReconciled  71s   ingress  Successfully reconciled
 ```
 
 此外也可以只查看入口地址，执行如下命令可查看。命令后边没有加 -n 的参数表示是在default namespace，如果是在其他name space下需要使用 -n namespace名字 的方式声明要查询的命名空间。
@@ -244,8 +252,8 @@ kubectl get ingress -n game-2048
 返回结果：
 
 ```
-NAME           CLASS    HOSTS   ADDRESS                                                                      PORTS   AGE
-ingress-2048   <none>   *       k8s-game2048-ingress2-330cc1efad-50734125.ap-southeast-1.elb.amazonaws.com   80      10m
+NAME           CLASS    HOSTS   ADDRESS                                                                        PORTS   AGE
+ingress-2048   <none>   *       k8s-game2048-ingress2-2810c0c2ad-1338588716.ap-southeast-1.elb.amazonaws.com   80      146m
 ```
 
 使用浏览器访问ALB的地址，即可看到应用部署成功。
@@ -268,4 +276,4 @@ ALB Ingress：
 
 AWS GCR Workshop：
 
-[https://github.com/guoxun19/gcr-eks-workshop](https://github.com/guoxun19/gcr-eks-workshop)
+[https://github.com/guoxun19/gcr-eks-workshop](https://github.com/guoxun19/gcr-eks-workshop)`

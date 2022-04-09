@@ -233,9 +233,10 @@ kubectl get node
 返回节点如下表示正常。
 
 ```
-NAME                                               STATUS   ROLES    AGE     VERSION
-ip-192-168-76-61.ap-southeast-1.compute.internal   Ready    <none>   5m10s   v1.20.4-eks-6b7464
-ip-192-168-8-47.ap-southeast-1.compute.internal    Ready    <none>   5m10s   v1.20.4-eks-6b7464
+NAME                                                 STATUS   ROLES    AGE    VERSION
+ip-192-168-122-179.ap-southeast-1.compute.internal   Ready    <none>   159m   v1.22.6-eks-7d68063
+ip-192-168-137-83.ap-southeast-1.compute.internal    Ready    <none>   159m   v1.22.6-eks-7d68063
+ip-192-168-181-37.ap-southeast-1.compute.internal    Ready    <none>   159m   v1.22.6-eks-7d68063
 ```
 
 ## 四、创建集群并配置Dashboard图形界面
@@ -339,11 +340,11 @@ nginx-deployment   1/1     1            1           9m12s
 kubectl get service service-nginx -o wide 
 ```
 
-返回结果如下。其中的ELB域名地址就是对外访问入口。
+返回结果如下。其中的ELB域名地址就是对外访问入口。其中的CLUSTER-IP即可看到是创建集群时候指定的IP范围。
 
 ```
-NAME            TYPE           CLUSTER-IP      EXTERNAL-IP                                                                             PORT(S)        AGE   SELECTOR
-service-nginx   LoadBalancer   10.100.224.17   acba538c728d64a8db295c3f14b0ee01-1911011890f36ddc.elb.cn-northwest-1.amazonaws.com.cn   80:31920/TCP   11m   app=nginx
+NAME            TYPE           CLUSTER-IP   EXTERNAL-IP                                                                          PORT(S)        AGE    SELECTOR
+service-nginx   LoadBalancer   10.50.0.12   a4fa7cb23a0754d8b8198fad9fa7b133-114a5df4c6565d90.elb.ap-southeast-1.amazonaws.com   80:31411/TCP   156m   app=nginx
 ```
 
 用浏览器访问ELB地址，即可验证应用启动结果。
