@@ -1,5 +1,7 @@
 # eks-101-workshop
 
+@2022-04，更新eksctl 0.92版本，支持创建EKS 1.22和AWS ELB Ingress。Global区域测试通过。
+
 EKS101动手实验：
 
 [实验1、创建EKS集群](https://github.com/aobao32/eks-101-workshop/blob/main/01-create-cluster.md)
