@@ -49,7 +49,7 @@ eksworkshop	managed-ng	ACTIVE	2022-04-09T04:34:33Z	3		6		3			t3.2xlarge	AL2_x86_
 现在扩展集群到6个节点，并设置最大9节点。注意请替换下边语句中的cluster名称、region、nodegroup名称为当前实验对应的名称。
 
 ```
-eksctl scale nodegroup --cluster=eksworkshop --region=ap-southeast-1 --name=managed-ng --nodes-max=9 --nodes=6
+eksctl scale nodegroup --cluster=eksworkshop --region=ap-southeast-1 --name=managed-ng --nodes-min=3 --nodes-max=9 --nodes=6
 ```
 
 执行结果如下表示扩展成功。
@@ -82,8 +82,6 @@ ip-192-168-137-83.ap-southeast-1.compute.internal    Ready    <none>   3h40m   v
 ip-192-168-151-125.ap-southeast-1.compute.internal   Ready    <none>   29m     v1.22.6-eks-7d68063
 ip-192-168-177-150.ap-southeast-1.compute.internal   Ready    <none>   29m     v1.22.6-eks-7d68063
 ip-192-168-181-37.ap-southeast-1.compute.internal    Ready    <none>   3h39m   v1.22.6-eks-7d68063
-
-
 ```
 
 此时可以再次查询节点属性，执行如下命令。
