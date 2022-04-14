@@ -142,7 +142,7 @@ ingress-phpdocker   <none>   *       k8s-mydemo-ingressp-d0c41bb86f-601116587.ap
 如果从本地启动的，则执行如下命令：
 
 ```
-kubectl delete -f phpdocker
+kubectl delete -f phpdocker.yaml
 ```
 
 实验完成。

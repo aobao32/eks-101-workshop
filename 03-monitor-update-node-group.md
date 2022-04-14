@@ -37,7 +37,6 @@ eksctl get nodegroup --cluster eksworkshop
 输出结果如下。
 
 ```
-
 2022-04-09 15:39:34 [ℹ]  eksctl version 0.92.0
 2022-04-09 15:39:34 [ℹ]  using region ap-southeast-1
 CLUSTER		NODEGROUP	STATUS	CREATED			MIN SIZE	MAX SIZE	DESIRED CAPACITY	INSTANCE TYPE	IMAGE ID	ASG NAME	TYPE
@@ -210,7 +209,7 @@ eksworkshop	newng		ACTIVE	2022-04-09T08:41:16Z	3		6		3			m5.2xlarge	AL2_x86_64	e
 执行如下命令。
 
 ```
-eksctl delete nodegroup --cluster eksworkshop --name managed-gp --region ap-southeast-1
+eksctl delete nodegroup --cluster eksworkshop --name managed-ng --region ap-southeast-1
 ```
 
 等待几分钟后，再次查询集群所对应的nodegroup，执行如下命令。
