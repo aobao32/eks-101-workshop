@@ -1,6 +1,6 @@
 # eks-101-workshop
 
-@2022-04，更新eksctl 0.92版本，支持创建EKS 1.22和AWS ELB Ingress。Global区域测试通过。
+@2022-04，更新eksctl 0.92版本，支持创建EKS 1.22和AWS ELB Ingress。Global区域(SGP)和中国区(ZHY)测试通过。
 
 EKS101动手实验：
 
