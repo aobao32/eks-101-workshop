@@ -6,7 +6,7 @@
 
 ### 1、部署配置文件（注意这一段需要Linux的bash来执行，Windows下cmd无法执行）
 
-执行如下命令，注意替换其中的Region和集群名称。
+AWS海外区域执行如下命令，注意替换其中的Region和集群名称。
 
 ```
 ClusterName=eksworkshop
@@ -16,6 +16,18 @@ FluentBitReadFromHead='Off'
 [[ ${FluentBitReadFromHead} = 'On' ]] && FluentBitReadFromTail='Off'|| FluentBitReadFromTail='On'
 [[ -z ${FluentBitHttpPort} ]] && FluentBitHttpServer='Off' || FluentBitHttpServer='On'
 curl https://myworkshop.bitipcman.com/eks101/cwagent-fluent-bit-quickstart.yaml | sed 's/{{cluster_name}}/'${ClusterName}'/;s/{{region_name}}/'${RegionName}'/;s/{{http_server_toggle}}/"'${FluentBitHttpServer}'"/;s/{{http_server_port}}/"'${FluentBitHttpPort}'"/;s/{{read_from_head}}/"'${FluentBitReadFromHead}'"/;s/{{read_from_tail}}/"'${FluentBitReadFromTail}'"/' | kubectl apply -f - 
+```
+
+AWS中国区域有时候存在下载速度问题，如果上一个地址不成功，可使用如下命令：
+
+```
+ClusterName=eksworkshop
+RegionName=ap-southeast-1
+FluentBitHttpPort='2020'
+FluentBitReadFromHead='Off'
+[[ ${FluentBitReadFromHead} = 'On' ]] && FluentBitReadFromTail='Off'|| FluentBitReadFromTail='On'
+[[ -z ${FluentBitHttpPort} ]] && FluentBitHttpServer='Off' || FluentBitHttpServer='On'
+curl https://myworkshop.bitipcman.com/eks101/cwagent-fluent-bit-quickstart-cn.yaml | sed 's/{{cluster_name}}/'${ClusterName}'/;s/{{region_name}}/'${RegionName}'/;s/{{http_server_toggle}}/"'${FluentBitHttpServer}'"/;s/{{http_server_port}}/"'${FluentBitHttpPort}'"/;s/{{read_from_head}}/"'${FluentBitReadFromHead}'"/;s/{{read_from_tail}}/"'${FluentBitReadFromTail}'"/' | kubectl apply -f - 
 ```
 
 部署完成。

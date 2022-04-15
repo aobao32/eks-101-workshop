@@ -104,7 +104,7 @@ managedNodeGroups:
   - name: managed-ng
     labels:
       Name: managed-ng
-    instanceType: t3.2xlarge
+    instanceType: m5.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
@@ -186,7 +186,7 @@ managedNodeGroups:
   - name: managed-ng
     labels:
       Name: managed-ng
-    instanceType: t3.2xlarge
+    instanceType: m5.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
