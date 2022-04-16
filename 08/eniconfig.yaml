@@ -1,0 +1,20 @@
+apiVersion: crd.k8s.amazonaws.com/v1alpha1
+kind: ENIConfig
+metadata: 
+  name: cn-northwest-1a
+spec: 
+  subnet: subnet-0212576e31c02c077
+---
+apiVersion: crd.k8s.amazonaws.com/v1alpha1
+kind: ENIConfig
+metadata: 
+  name: cn-northwest-1b
+spec: 
+  subnet: subnet-002bfe02b7bfa7ba4
+---
+apiVersion: crd.k8s.amazonaws.com/v1alpha1
+kind: ENIConfig
+metadata: 
+  name: cn-northwest-1c
+spec: 
+  subnet: subnet-08cb25ce86ab2a4cs
