@@ -74,7 +74,7 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 ## 三、配置EKS集群
 
-### 1、创建一个不包含Node节点的空白EKS集群
+### 1、创建一个不包含Node节点的空白EKS集群（设置Node所在子网）
 
 首先构建配置文件，替换其中的子网ID为Node所在的子网ID。
 
@@ -112,7 +112,7 @@ cloudWatch:
 eksctl create cluster -f eks-without-nodegroup.yaml
 ```
 
-### 2、调整aws-vpc-cni的参数
+### 2、调整aws-vpc-cni的参数（设置Pod所在子网）
 
 允许EKS自定义CNI网络插件的参数，执行如下命令：
 
@@ -120,11 +120,11 @@ eksctl create cluster -f eks-without-nodegroup.yaml
 kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
 ```
 
-进入AWS控制台，从子网界面查看子网信息，获得可用区ID和子网ID。将三个Pod子网的信息分别复制下来。如下截图。
+进入AWS控制台，从子网界面查看子网信息，确定Pod所在子网，获得可用区ID和子网ID。将三个Pod子网的信息分别复制下来。如下截图。
 
 ![](https://myworkshop.bitipcman.com/eks101/ip/pod09.png)
 
-用文本编辑器编辑如下文件，替换其中的可用区ID和子网ID，然后保存为`eniconfig.yaml`文件。
+用文本编辑器编辑如下文件，替换其中的可用区ID和子网ID为Pod所在子网的ID，然后保存为`eniconfig.yaml`文件。
 
 ```
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
@@ -161,7 +161,7 @@ kubectl apply -f eniconfig.yaml
 kubectl set env daemonset aws-node -n kube-system ENI_CONFIG_LABEL_DEF=topology.kubernetes.io/zone
 ```
 
-### 3、创建Pod使用独立网段的Nodegroup节点组
+### 3、创建新的Nodegroup节点组
 
 注意：本实验采用的是创建全新集群，并修改网络配置，然后创建节点组。如果是先有集群，修改网络配置后也要重新创建Node才可以生效。
 
@@ -208,7 +208,9 @@ eksctl create nodegroup -f newnodegroup.yaml
 
 ## 四、使用NodePort方式暴露应用
 
-构建如下测试应用：
+如果需求方式是使用Node节点的高位端口暴露应用，那么可不使用ALB Ingress，只是使用简单的NodePort方式暴露应用。
+
+构建如下测试应用（Nginx）：
 
 ```
 ---
@@ -261,8 +263,6 @@ kubectl apply -f nginx-nlb.yaml
 ```
 kubectl get service service-nginx -o wide 
 ``` 
-
-按照正常的方式启动应用。启用应用的yaml不需要额外特殊配置。
 
 启动完成后，查看所有pod的IP，可发现除默认负责网络转发的kube-proxy和aws-node（VPC CNI）还运行在Node所在的Subnet上之外，新创建的应用都会运行在新的子网和IP地址段上。如下截图。
 
