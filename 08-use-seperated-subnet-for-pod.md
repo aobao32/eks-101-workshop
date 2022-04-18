@@ -74,27 +74,53 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 ## 三、配置EKS集群
 
-### 1、检查确认集群版本和VPC CNI版本（可跳过）
+### 1、创建一个不包含Node节点的空白EKS集群
 
-使用附加IP地址段要求AWS VPC CNI的版本大于1.6.3。本文在EKS 1.22中国区（宁夏ZHY）上使用VPC CNI 1.10版本测试通过。
-
-执行如下命令查看版本：
+首先构建配置文件，替换其中的子网ID为Node所在的子网ID。
 
 ```
-kubectl describe daemonset aws-node --namespace kube-system | grep Image
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop
+  region: cn-northwest-1
+  version: "1.22"
+
+vpc:
+  clusterEndpoints:
+    publicAccess:  true
+    privateAccess: true
+  subnets:
+    private:
+      cn-northwest-1a: { id: subnet-0af2e9fc3c3ab08b4 }
+      cn-northwest-1b: { id: subnet-0bb5aa110443670a1 }
+      cn-northwest-1c: { id: subnet-008bcabf73bea7e58 }
+
+kubernetesNetworkConfig:
+  serviceIPv4CIDR: 10.50.0.0/24
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+    logRetentionInDays: 30
 ```
 
-返回结果如下：
+将以上内容保存为`eks-without-nodegroup.yaml`，然后运行如下命令启动集群。
 
 ```
-961992271922.dkr.ecr.cn-northwest-1.amazonaws.com.cn/amazon-k8s-cni:v1.10.1-eksbuild.1
+eksctl create cluster -f eks-without-nodegroup.yaml
 ```
 
-这表示当前AWS VPC CNI的版本是1.10，符合使用扩展IP段的最低版本要求。
+### 2、调整aws-vpc-cni的参数
 
-### 2、配置ENIConfig
+允许EKS自定义CNI网络插件的参数，执行如下命令：
 
-首先从子网界面查看子网信息，获得可用区ID和子网ID。将三个Pod子网的信息分别复制下来。如下截图。
+``` 
+kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
+```
+
+进入AWS控制台，从子网界面查看子网信息，获得可用区ID和子网ID。将三个Pod子网的信息分别复制下来。如下截图。
 
 ![](https://myworkshop.bitipcman.com/eks101/ip/pod09.png)
 
@@ -104,43 +130,137 @@ kubectl describe daemonset aws-node --namespace kube-system | grep Image
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
 metadata: 
-  name: cn-northwest-1a
+  name: cn-northwest-1c
 spec: 
-  subnet: subnet-0212576e31c02c077
+  subnet: subnet-045930b2b272266a0
 ---
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
 metadata: 
   name: cn-northwest-1b
 spec: 
-  subnet: subnet-002bfe02b7bfa7ba4
+  subnet: subnet-0e1b4e449662b8829
 ---
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
 metadata: 
-  name: cn-northwest-1c
+  name: cn-northwest-1a
 spec: 
-  subnet: subnet-08cb25ce86ab2a4cs
+  subnet: subnet-0a6e4899eb92cb204
 ```
 
 将以上配置文件保存为`eniconfig.yaml`文件。然后执行如下命令：
 
 ```
-# 启用自定义网络
-kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
-# 加载ENIConfig
 kubectl apply -f eniconfig.yaml
-# 节点标签设置
+```
+
+接下来为EKS设置标签，允许Node使用对应子网。执行如下命令：
+
+```
 kubectl set env daemonset aws-node -n kube-system ENI_CONFIG_LABEL_DEF=topology.kubernetes.io/zone
 ```
 
-### 3、重新创建节点组
+### 3、创建Pod使用独立网段的Nodegroup节点组
 
-在修改配置完毕后，需要重新创建节点组。如果在当前节点组上继续启动任务，那么Pod将继续使用现有Node所在的子网，不会使用新扩展的子网。
+注意：本实验采用的是创建全新集群，并修改网络配置，然后创建节点组。如果是先有集群，修改网络配置后也要重新创建Node才可以生效。
 
-请参考之前变更节点组规格的说明，重新创建新的Nodegroup。然后删除旧的节点组。
+构建如下内容，保存为`newnodegroup.yaml`文件。
 
-## 四、测试应用
+```
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop
+  region: cn-northwest-1
+  version: "1.22"
+
+managedNodeGroups:
+  - name: ng1
+    labels:
+      Name: ng1
+    instanceType: m5.2xlarge
+    minSize: 3
+    desiredCapacity: 3
+    maxSize: 6
+    privateNetworking: true
+    volumeType: gp3
+    volumeSize: 100
+    tags:
+      nodegroup-name: ng1
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        certManager: true
+        efs: true
+        albIngress: true
+        xRay: true
+        cloudWatch: true
+```
+
+保存配置完毕后，执行如下命令生效：
+
+```
+eksctl create nodegroup -f newnodegroup.yaml
+```
+
+## 四、使用NodePort方式暴露应用
+
+构建如下测试应用：
+
+```
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "service-nginx"
+  annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  selector:
+    app: nginx
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+```
+
+将以上配置文件保存为`nginx-nlb.yaml`，然后执行如下命令启动：
+
+```
+kubectl apply -f nginx-nlb.yaml
+```
+
+查看NLB入口。
+
+```
+kubectl get service service-nginx -o wide 
+``` 
 
 按照正常的方式启动应用。启用应用的yaml不需要额外特殊配置。
 
@@ -148,7 +268,15 @@ kubectl set env daemonset aws-node -n kube-system ENI_CONFIG_LABEL_DEF=topology.
 
 ![](https://myworkshop.bitipcman.com/eks101/ip/pod10.png)
 
-## 五、参考文档
+## 五、部署CloudWatch Container Insight
+
+部署CloudWatch Container Insight的方法与此前方法相同。
+
+## 六、部署ALB Ingress
+
+部署CloudWatch Container Insight的方法与此前方法相同。
+
+## 七、参考文档
 
 Github上的AWS VPC CNI代码和文档
 
