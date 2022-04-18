@@ -26,7 +26,7 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 #### （3）方案三、更换Kubenetus社区的CNI并配置EKS Pod使用非VPC IP地址
 
-如果希望EKS上的Pod完全不使用本VPC的IP地址，这可以更换EKS的CNI网络插件，官方文档[这里](https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/alternate-cni-plugins.html)做了介绍。在集群创建后，可删除默认的AWS VPC CNI，然后安装WeaveNet等插件。此
+如果希望EKS上的Pod完全不使用本VPC的IP地址，这可以更换EKS的CNI网络插件，官方文档[这里](https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/alternate-cni-plugins.html)做了介绍。在集群创建后，可删除默认的AWS VPC CNI，然后安装WeaveNet等插件。
 
 本文描述方案二，即为VPC扩展IP。
 
@@ -270,11 +270,11 @@ kubectl get service service-nginx -o wide
 
 ## 五、部署CloudWatch Container Insight
 
-部署CloudWatch Container Insight的方法与此前方法相同。
+部署CloudWatch Container Insight的方法与此前方法相同。可参考[这篇](https://github.com/aobao32/eks-101-workshop/blob/main/03-monitor-update-node-group.md)文档。
 
 ## 六、部署ALB Ingress
 
-部署CloudWatch Container Insight的方法与此前方法相同。
+部署CloudWatch Container Insight的方法与此前方法相同。可参考[这篇](https://github.com/aobao32/eks-101-workshop/blob/main/02-deploy-alb-ingress.md)文档。
 
 ## 七、参考文档
 
