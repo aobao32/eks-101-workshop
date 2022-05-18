@@ -145,6 +145,7 @@ managedNodeGroups:
         autoScaler: true
         certManager: true
         efs: true
+        ebs: true
         albIngress: true
         xRay: true
         cloudWatch: true
