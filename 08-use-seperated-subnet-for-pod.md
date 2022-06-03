@@ -230,9 +230,35 @@ managedNodeGroups:
 eksctl create nodegroup -f newnodegroup.yaml
 ```
 
-## 四、使用NodePort方式暴露应用
+## 四、部署AWS Load Balancer Controller
 
-如果需求方式是使用Node节点的高位端口暴露应用，那么可不使用ALB Ingress，只是使用简单的NodePort方式暴露应用。
+在EKS 1.21以上版本，由于API的变化，创建NLB和ALB Ingress都被整合到了Load Balancer Controller中。所以如果不部署Load Balancer Controller，NLB也是无法创建成功的。在部署Load Balancer Controller完成后，可以根据需要只部署NLB或者只部署ALB Ingress，或者同时部署两种负载均衡。
+
+分别执行以下命令，完成AWS Load Balancer Controller的部署。
+
+```
+eksctl utils associate-iam-oidc-provider --region cn-northwest-1 --cluster eksworkshop --approve
+```
+
+```
+eksctl create iamserviceaccount --cluster=eksworkshop --namespace=kube-system --name=aws-load-balancer-controller --attach-policy-arn=arn:aws-cn:iam::420029960748:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
+```
+
+```
+kubectl apply --validate=false -f https://myworkshop.bitipcman.com/eks101/cert-manager_v1.8.1.yaml
+```
+
+```
+kubectl apply -f https://myworkshop.bitipcman.com/eks101/crds.yaml
+```
+
+```
+kubectl apply -f https://myworkshop.bitipcman.com/eks101/v2_4_1_full-zhy.yaml
+```
+
+## 五、在公有子网创建NLB并使用NodePort方式暴露应用
+
+如果需求方式是使用Node节点的高位端口暴露应用，那么可不使用ALB Ingress，只是使用简单的NodePort方式暴露应用。前文在创建子网部分已经描述了如何在Subnet上打上EKS的tag，由此EKS会自动找到对应子网。
 
 构建如下测试应用（Nginx）：
 
@@ -265,7 +291,9 @@ kind: Service
 metadata:
   name: "service-nginx"
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+        service.beta.kubernetes.io/aws-load-balancer-type: external
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
 spec:
   selector:
     app: nginx
@@ -292,20 +320,67 @@ kubectl get service service-nginx -o wide
 
 ![](https://myworkshop.bitipcman.com/eks101/ip/pod10.png)
 
-## 五、部署CloudWatch Container Insight
+## 六、在私有子网部署内网的NLB
+
+在某些模式下，我们只需要对VPC内网或者其他VPC、专线等另一侧暴露内网NLB。因此这时候就不需要构建基于Internet-facing的公网NLB了。这种场景下，构建如下一段配置：
+
+```
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "service-nginx"
+  annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb-ip
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+        service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+spec:
+  selector:
+    app: nginx
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+```
+
+## 七、部署CloudWatch Container Insight
 
 部署CloudWatch Container Insight的方法与此前方法相同。可参考[这篇](https://github.com/aobao32/eks-101-workshop/blob/main/03-monitor-update-node-group.md)文档。
 
-## 六、部署ALB Ingress
+## 八、参考文档
 
-部署CloudWatch Container Insight的方法与此前方法相同。可参考[这篇](https://github.com/aobao32/eks-101-workshop/blob/main/02-deploy-alb-ingress.md)文档。
-
-## 七、参考文档
-
-Github上的AWS VPC CNI代码和文档
+Github上的AWS VPC CNI代码和文档：
 
 [https://github.com/aws/amazon-vpc-cni-k8s](https://github.com/aws/amazon-vpc-cni-k8s)
 
-使用CNI自定义网络
+使用CNI自定义网络：
 
 [https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/cni-custom-network.html](https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/cni-custom-network.html)
+
+EKS的NLB参数说明：
+
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#lb-scheme](https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#lb-scheme)

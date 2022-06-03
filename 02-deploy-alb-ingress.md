@@ -1,8 +1,8 @@
-# 实验二、部署AWS Load Balancer Ingress Controller
+# 实验二、部署AWS Load Balancer Controller
 
 EKS 1.22版本 @2022-04 Global区域和中国区域测试通过
 
-## 一、部署AWS Load Balancer Ingress Controller
+## 一、部署AWS Load Balancer Controller
 
 ### 1、为EKS生成IAM的OIDC授权
 
@@ -140,7 +140,7 @@ customresourcedefinition.apiextensions.k8s.io/ingressclassparams.elbv2.k8s.aws c
 customresourcedefinition.apiextensions.k8s.io/targetgroupbindings.elbv2.k8s.aws created
 ```
 
-### 6、部署AWS Load Balancer Ingress Controller（v2.4.1）
+### 6、部署AWS Load Balancer Controller（v2.4.1）
 
 下载配置文件。
 
@@ -177,7 +177,7 @@ ingressclass.networking.k8s.io/alb created
 
 ### 7、检查部署结果
 
-在创建AWS Load Balancer Ingress Controller后，等待几分钟启动完成，执行如下命令检查部署结果：
+在创建AWS Load Balancer Controller后，等待几分钟启动完成，执行如下命令检查部署结果：
 
 ```
 kubectl get deployment -n kube-system aws-load-balancer-controller
@@ -194,7 +194,7 @@ aws-load-balancer-controller   1/1     1            1           3m2s
 
 此时只是配置好了AWS Load Balancer Ingress Controller所需要的Controller对应的Pod，如果现在去查看EC2控制台的ELB界面，是看不到有负载均衡被创建出来的。接下来的步骤部署应用时候将随应用一起创建ALB。
 
-## 二、部署2048应用
+## 二、部署使用ALB Ingress的2048应用
 
 ### 1、部署应用
 
