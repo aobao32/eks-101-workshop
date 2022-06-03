@@ -78,6 +78,20 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 备注：如果您使用了Gateway Load Balancer做的集中网络流量检测方案，那么这里的默认网关下一跳应该是TGW。如果您没有使用Gateway Load Balancer，默认下一跳都是NAT Gateway。
 
+### 4、为要使用ELB的子网打标签
+
+找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
+
+- 标签名称：`kubernetes.io/role/elb`，值：`1`
+- 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
+
+接下来进入VPC的Private subnet，为其添加标签：
+
+- 标签名称：`kubernetes.io/role/internal-elb`，值：`1`
+- 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
+
+接下来请重复以上工作，每个AZ的子网都实施相同的配置，注意第一项标签值都是1。
+
 至此VPC配置完毕。
 
 ## 三、配置EKS集群
@@ -125,7 +139,8 @@ eksctl create cluster -f eks-without-nodegroup.yaml
 允许EKS自定义CNI网络插件的参数，执行如下命令：
 
 ``` 
-kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
+kubectl set env daemonset aws-node \
+    -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
 ```
 
 进入AWS控制台，从子网界面查看子网信息，确定Pod所在子网，获得可用区ID和子网ID。将三个Pod子网的信息分别复制下来。如下截图。
