@@ -80,12 +80,18 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 ### 4、为要使用ELB的子网打标签
 
+#### （1）使用Internet-facing ELB，面向公网提供服务
+
 找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
 
 - 标签名称：`kubernetes.io/role/elb`，值：`1`
 - 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
 
-接下来进入VPC的Private subnet，为其添加标签：
+#### （2）使用Internal ELB，面向Private内部子网提供服务
+
+在创建私有ELB时候，可选的任意子网创建。如果您的VPC架构是基于Gateway Load Balancer的多VPC集中式流量检测架构，那么，您可以将内网的NLB部署在业务VPC的TGW ENI子网。这个子网是在业务VPC中，意味着与您的EKS是在相同的VPC。另外，可以将ELB所在位置与Node节点所在子网和Pod容器所在子网分开。
+
+接下来找到最终选定部署位置的Private subnet，为其添加标签：
 
 - 标签名称：`kubernetes.io/role/internal-elb`，值：`1`
 - 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
