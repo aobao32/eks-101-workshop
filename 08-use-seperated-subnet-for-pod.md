@@ -190,6 +190,14 @@ kubectl apply -f eniconfig.yaml
 kubectl set env daemonset aws-node -n kube-system ENI_CONFIG_LABEL_DEF=topology.kubernetes.io/zone
 ```
 
+为了查询上述配置是否生效，可以自行如下命令：
+
+```
+kubectl describe daemonset aws-node --namespace kube-system
+```
+
+通过输出结果即可确认配置生效。
+
 ### 3、创建新的Nodegroup节点组
 
 注意：本实验采用的是创建全新集群，并修改网络配置，然后创建节点组。如果是先有集群，修改网络配置后也要重新创建Node才可以生效。
