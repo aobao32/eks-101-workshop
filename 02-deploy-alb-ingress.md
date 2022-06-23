@@ -145,15 +145,24 @@ customresourcedefinition.apiextensions.k8s.io/targetgroupbindings.elbv2.k8s.aws 
 下载配置文件。
 
 ```
-wget https://myworkshop.bitipcman.com/eks101/v2_4_1_full.yaml
+wget https://myworkshop.bitipcman.com/eks101/v2_4_2_full.yaml
 ```
 
-下载后用编辑器打开，找到其中的`--cluster-name=your-cluster-name`部分，将eks集群名称`your-cluster-name`改成与前文一致的名称，例如本文是`eksworkshop`的名称。
+下载后用编辑器打开，找到其中的`--cluster-name=your-cluster-name`部分，将eks集群名称`your-cluster-name`改成与前文一致的名称，例如本文是`eksworkshop`的名称。然后继续修改vpc-id和region，然后保存。
+
+```
+      containers:
+      - args:
+        - --cluster-name=your-cluster-name
+        - --ingress-class=alb
+        - --aws-vpc-id=vpc-xxxxxxxx
+        - --aws-region=cn-northwest-1
+```
 
 执行如下命令：
 
 ```
-kubectl apply -f v2_4_1_full.yaml
+kubectl apply -f v2_4_2_full.yaml
 ```
 
 返回信息如下：
@@ -193,6 +202,20 @@ aws-load-balancer-controller   1/1     1            1           3m2s
 表示部署成功。如果READY位置状态是0/1，则表示启动失败，需要检查前几个步骤的输出信息是否有报错。
 
 此时只是配置好了AWS Load Balancer Ingress Controller所需要的Controller对应的Pod，如果现在去查看EC2控制台的ELB界面，是看不到有负载均衡被创建出来的。接下来的步骤部署应用时候将随应用一起创建ALB。
+
+### 8、子网打标签
+
+请确保本子网已经设置了正确的路由表，且VPC内包含NAT Gateway可以提供外网访问能力。然后接下来为其打标签。
+
+找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
+
+标签名称：kubernetes.io/role/elb，值：1
+标签名称：kubernetes.io/cluster/eksworkshop，值：shared
+接下来进入Private subnet，为其添加标签：
+
+标签名称：kubernetes.io/role/internal-elb，值：1
+标签名称：kubernetes.io/cluster/eksworkshop，值：shared
+接下来请重复以上工作，三个AZ的子网都实施相同的配置，注意第一项标签值都是1。
 
 ## 二、部署使用ALB Ingress的2048应用
 

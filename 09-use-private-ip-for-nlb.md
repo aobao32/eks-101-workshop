@@ -34,6 +34,20 @@
 
 在EKS 1.22版本上，原先的ALB Ingress已经改名为AWS Load Balancer Controller，因此不仅是使用ALB需要事先安装，使用NLB也需要提前安装好AWS Load Balancer Controller。安装方法请参考[这里](https://github.com/aobao32/eks-101-workshop/blob/main/02-deploy-alb-ingress.md)，本文不再赘述。
 
+### 4、确认VPC和Subnet带有EKS的ELB所需要的标签
+
+请确保本子网已经设置了正确的路由表，且VPC内包含NAT Gateway可以提供外网访问能力。然后接下来为其打标签。
+
+找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
+
+标签名称：kubernetes.io/role/elb，值：1
+标签名称：kubernetes.io/cluster/eksworkshop，值：shared
+接下来进入Private subnet，为其添加标签：
+
+标签名称：kubernetes.io/role/internal-elb，值：1
+标签名称：kubernetes.io/cluster/eksworkshop，值：shared
+接下来请重复以上工作，三个AZ的子网都实施相同的配置，注意第一项标签值都是1。
+
 ## 三、EKS YAML样例
 
 编写如下yaml文件，替换其中的NLB参数和IP地址为需要使用的参数。此外，请替换其中的image镜像地址为您的ECR上的镜像地址，例如替换为`420029960748.dkr.ecr.cn-northwest-1.amazonaws.com.cn/phpdemo:4`，即可从ECR拉起镜像。

@@ -145,6 +145,10 @@ data:
       username: newusername 
       groups: 
         - system:masters
+    - userarn: arn:aws-cn:iam::420029960748:user/newusername 
+      username: newusername 
+      groups: 
+        - system:masters
 kind: ConfigMap
 metadata:
   creationTimestamp: "2022-03-23T10:36:54Z"

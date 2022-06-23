@@ -143,7 +143,7 @@ eksctl create cluster -f newvpc.yaml
 
 #### （1）给EKS要使用的Subnet子网打标签
 
-如果希望使用现有VPC的Private子网，请确保本子网已经设置了正确的路由表，且VPC内包含NAT Gateway可以提供外网访问能力。然后接下来为其打标签。
+请确保本子网已经设置了正确的路由表，且VPC内包含NAT Gateway可以提供外网访问能力。然后接下来为其打标签。
 
 找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
 
