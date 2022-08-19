@@ -2,6 +2,8 @@
 
 ## 一、背景
 
+### 1、没有EKS而是使用EC2场景下获取客户端真实IP地址
+
 在之前的文章主要是介绍ELB+EC2模式下，获取客户端真实IP，可参考AWS官方知识库：
 
 [https://aws.amazon.com/cn/premiumsupport/knowledge-center/elb-capture-client-ip-addresses/](https://aws.amazon.com/cn/premiumsupport/knowledge-center/elb-capture-client-ip-addresses/)
@@ -19,9 +21,26 @@
 | ALB       | Instance | 否 | 启用 X-Forwarded-For Header |
 | ALB       | IP       | 否 | 启用 X-Forwarded-For Header |
 
-那么在EKS环境上，ELB的选择又包括：NLB Service模式和ALB Ingress两种模式。其中，NLB注册目标组还有IP模式和Instance模式两种。在这几种模式下，获取真实IP地址方案与ELB+EC2场景有所差别，其原因是EKS上的aws-vpc-cni和kube-proxy负责网络流量的转发，再加上AWS Load Balancer Controller负责Ingress，所以与普通ELB直接对接EC2相比有所差异。
+### 2、EKS环境下获取客户端真实IP地址
 
-本文分别测试如下场景。
+在EKS环境上，ELB的选择又包括：NLB Service模式和ALB Ingress两种模式。其中，NLB注册目标组还有IP模式和Instance模式两种。
+
+在这几种模式下，获取真实IP地址方案与ELB+EC2场景有所差别，其原因是EKS上的aws-vpc-cni和kube-proxy负责网络流量的转发，再加上AWS Load Balancer Controller负责Ingress，所以与普通ELB直接对接EC2相比有所差异。本文分别测试如下场景。
+
+### 3、构建测试用容器
+
+本文实验环境构建一个Apache+PHP容器，并在其中放置一个默认页面`index.php`显示客户端IP地址。这个环境的代码在Github上[这里](https://github.com/aobao32/eks-101-workshop/tree/main/10/phpdemo)可以获得。
+
+在配置好AWSCLI的情况下，并且ECR容器镜像仓库也配置好存储库的情况下，使用如下命令构建这个测试容器：
+
+```
+docker build -t phpdemo:1 .
+docker tag phpdemo:1 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com
+docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2
+```
+
+由此即可获得构建好的容器，稍后用于EKS测试。
 
 ## 二、使用NLB+目标组IP模式获取客户端真实IP
 
@@ -29,7 +48,7 @@
 
 ### 1、构建测试容器
 
-为了测试IP地址的正常显示，我们启动一个运行apache+php的容器，并在其中放置一个默认页面`index.php`显示客户端IP地址。其内容如下。
+为了测试IP地址的正常显示，我们启动一个运行Apache+PHP的容器，并在其中放置一个默认页面`index.php`显示客户端IP地址。其内容如下。
 
 ```
 Client IP Address is: <?php printf($_SERVER["REMOTE_ADDR"]); ?>
@@ -129,7 +148,7 @@ RemoteIPProxyProtocol On
 
 需要注意的是，这个配置应加载于默认网站或者VirtualHost的配置段内，不能在其他位置任意填写，否则Apache会无法启动。
 
-修改完毕后，重新build重启，让本容器内启动的apache默认打开对Proxy V2的支持。
+修改完毕后，重新build容器，让本容器内启动的apache默认打开对Proxy V2的支持。
 
 ### 2、构建YAML文件
 

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: nlb-ip
-        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2
+        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:5
         ports:
         - containerPort: 80
         resources:
