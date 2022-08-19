@@ -1,0 +1,50 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nlb-instance
+  labels:
+    app: nlb-instance
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nlb-instance
+  template:
+    metadata:
+      labels:
+        app: nlb-instance
+    spec:
+      containers:
+      - name: nlb-instance
+        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:5
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2G
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "nlb-instance"
+  annotations:
+        service.beta.kubernetes.io/aws-load-balancer-name: nlb-instance
+        service.beta.kubernetes.io/aws-load-balancer-type: external
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+        service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+        service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+        service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+        service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+        service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: proxy_protocol_v2.enabled=true
+
+spec:
+  selector:
+    app: nlb-instance
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
