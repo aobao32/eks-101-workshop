@@ -21,3 +21,5 @@ EKS101动手实验：
 [实验8、为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段](https://github.com/aobao32/eks-101-workshop/blob/main/08-use-seperated-subnet-for-pod.md)
 
 [实验9、为私有NLB使用指定IP地址](https://github.com/aobao32/eks-101-workshop/blob/main/09-use-private-ip-for-nlb.md)
+
+[实验10、在EKS上的ELB获取最终用户的真实IP地址](https://github.com/aobao32/eks-101-workshop/blob/main/10-get-client-real-ip-behind-ELB.md)
