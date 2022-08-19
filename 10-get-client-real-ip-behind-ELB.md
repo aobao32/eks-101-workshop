@@ -27,6 +27,8 @@
 
 在这几种模式下，获取真实IP地址方案与ELB+EC2场景有所差别，其原因是EKS上的aws-vpc-cni和kube-proxy负责网络流量的转发，再加上AWS Load Balancer Controller负责Ingress，所以与普通ELB直接对接EC2相比有所差异。本文分别测试如下场景。
 
+注意：本文只对NLB和EKS在同一个VPC内的场景生效。
+
 ### 3、构建测试用容器
 
 本文实验环境构建一个Apache+PHP容器，并在其中放置一个默认页面`index.php`显示客户端IP地址。这个环境的代码在Github上[这里](https://github.com/aobao32/eks-101-workshop/tree/main/10/phpdemo)可以获得。
@@ -43,8 +45,6 @@ docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2
 由此即可获得构建好的容器，稍后用于EKS测试。
 
 ## 二、使用NLB+目标组IP模式获取客户端真实IP
-
-注意：本模式只对NLB和EKS在同一个VPC内的场景生效。
 
 ### 1、构建测试容器
 
@@ -348,7 +348,7 @@ admin2:~/environment $
 * **2、使用ALB Ingress模式**：此场景与普通ALB+EC2的方式相同，都是通过X_FORWARDED Header来获取真实IP地址。
 * **3、使用NLB Target Group 为Instance模式**：需要应用侧额外配置Proxy V2协议。步骤相对较多，复杂。
 
-### 3、参考文档：
+### 3、参考文档
 
 [https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#client-ip-preservation](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#client-ip-preservation)
 
