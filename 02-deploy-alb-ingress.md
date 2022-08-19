@@ -140,7 +140,7 @@ customresourcedefinition.apiextensions.k8s.io/ingressclassparams.elbv2.k8s.aws c
 customresourcedefinition.apiextensions.k8s.io/targetgroupbindings.elbv2.k8s.aws created
 ```
 
-### 6、部署AWS Load Balancer Controller（v2.4.1）
+### 6、部署AWS Load Balancer Controller（v2.4.2）
 
 下载配置文件。
 
@@ -299,4 +299,4 @@ ALB Ingress：
 
 AWS GCR Workshop：
 
-[https://github.com/guoxun19/gcr-eks-workshop](https://github.com/guoxun19/gcr-eks-workshop)`
+[https://github.com/guoxun19/gcr-eks-workshop](https://github.com/guoxun19/gcr-eks-workshop)
