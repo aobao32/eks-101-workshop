@@ -36,7 +36,7 @@ choco install -y eksctl jq curl wget vim 7zip
 
 下载eksctl：
 
-[https://lxy-sa-software.s3.cn-north-1.amazonaws.com.cn/eksctl_Windows_amd64.zip](https://lxy-sa-software.s3.cn-north-1.amazonaws.com.cn/eksctl_Windows_amd64.zip)
+[https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Windows_amd64.zip](https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Windows_amd64.zip
 
 下载kubectl：
 
@@ -90,7 +90,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.22"
+  version: "1.23"
 
 vpc:
   clusterEndpoints:
@@ -168,7 +168,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.22"
+  version: "1.23"
 
 vpc:
   clusterEndpoints:
@@ -302,7 +302,7 @@ kubectl delete -f https://myworkshop.bitipcman.com/eks101/kubernetes-dashboard.y
 执行如下命令。
 
 ```
-kubectl apply -f https://myworkshop.bitipcman.com/eks101/nginx-nlb.yaml 
+kubectl apply -f nginx-nlb.yaml 
 ```
 
 查看创建出来的pod，执行如下命令。
@@ -385,7 +385,7 @@ curl -m3 -v 上文获取到的NLB入口地址
 执行如下命令：
 
 ```
-kubectl delete -f https://myworkshop.bitipcman.com/eks101/nginx-nlb.yaml
+kubectl delete -f nginx-deployment.yaml
 ```
 
 至此服务删除完成。
