@@ -36,11 +36,9 @@ choco install -y eksctl jq curl wget vim 7zip
 
 下载eksctl：
 
-[https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Windows_amd64.zip](https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Windows_amd64.zip
-
-下载kubectl：
-
-[https://lxy-sa-software.s3.cn-north-1.amazonaws.com.cn/kubectl.exe.zip](https://lxy-sa-software.s3.cn-north-1.amazonaws.com.cn/kubectl.exe.zip)
+```
+curl -o kubectl.exe https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/windows/amd64/kubectl.exe
+```
 
 请将下载后的两个文件复制到 `C:\windows\system32` 目录下，由此便可在任意路径下调用。
 
@@ -51,7 +49,7 @@ choco install -y eksctl jq curl wget vim 7zip
 ```
 curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
 sudo mv /tmp/eksctl /bin
-curl -o kubectl https://amazon-eks.s3-us-west-2.amazonaws.com/1.21.2/2021-07-05/bin/linux/amd64/kubectl
+curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/amd64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
@@ -67,7 +65,7 @@ eksctl version
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
 brew tap weaveworks/tap
 brew install weaveworks/tap/eksctl
-curl -o kubectl  https://amazon-eks.s3-us-west-2.amazonaws.com/1.21.2/2021-07-05/bin/darwin/amd64/kubectl
+curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/darwin/amd64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
