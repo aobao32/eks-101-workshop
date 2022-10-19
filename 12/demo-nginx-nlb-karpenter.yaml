@@ -2,23 +2,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-nginx-spot
+  name: demo-nginx-nlb-karpenter
   labels:
-    app: demo-nginx-spot
+    app: demo-nginx-nlb-karpenter
 spec:
-  replicas: 3
+  replicas: 6
   selector:
     matchLabels:
-      app: demo-nginx-spot
+      app: demo-nginx-nlb-karpenter
   template:
     metadata:
       labels:
-        app: demo-nginx-spot
+        app: demo-nginx-nlb-karpenter
     spec:
       nodeSelector:
         intent: apps
       containers:
-      - name: demo-nginx-spot
+      - name: demo-nginx-nlb-karpenter
         image: public.ecr.aws/nginx/nginx:1.23-alpine
         ports:
         - containerPort: 80
@@ -30,12 +30,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: "demo-nginx-spot"
+  name: "demo-nginx-nlb-karpenter"
   annotations:
         service.beta.kubernetes.io/aws-load-balancer-type: nlb
 spec:
   selector:
-    app: demo-nginx-spot
+    app: demo-nginx-nlb-karpenter
   type: LoadBalancer
   ports:
   - protocol: TCP
