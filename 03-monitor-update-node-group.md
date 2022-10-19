@@ -1,4 +1,4 @@
-# 实验三、调整集群规格和配置
+# 实验三、启用CloudWatch Container Insight & 调整集群规格和配置
 
 ## 一、启用CloudWatch Container Insight
 
@@ -6,7 +6,19 @@
 
 ### 1、部署配置文件（注意这一段需要Linux的bash来执行，Windows下cmd无法执行）
 
-AWS海外区域执行如下命令，注意替换其中的Region和集群名称。
+在AWS海外区域做实验时候，可以直接从Github下载文件，因此执行如下命令，注意替换其中的`ClusterName`为集群名称，替换``为所在Region名称。
+
+```
+ClusterName=eksworkshop
+RegionName=ap-southeast-1
+FluentBitHttpPort='2020'
+FluentBitReadFromHead='Off'
+[[ ${FluentBitReadFromHead} = 'On' ]] && FluentBitReadFromTail='Off'|| FluentBitReadFromTail='On'
+[[ -z ${FluentBitHttpPort} ]] && FluentBitHttpServer='Off' || FluentBitHttpServer='On'
+curl https://raw.githubusercontent.com/aws-samples/amazon-cloudwatch-container-insights/latest/k8s-deployment-manifest-templates/deployment-mode/daemonset/container-insights-monitoring/quickstart/cwagent-fluent-bit-quickstart.yaml | sed 's/{{cluster_name}}/'${ClusterName}'/;s/{{region_name}}/'${RegionName}'/;s/{{http_server_toggle}}/"'${FluentBitHttpServer}'"/;s/{{http_server_port}}/"'${FluentBitHttpPort}'"/;s/{{read_from_head}}/"'${FluentBitReadFromHead}'"/;s/{{read_from_tail}}/"'${FluentBitReadFromTail}'"/' | kubectl apply -f - 
+```
+
+AWS中国区域有时候存在下载速度问题，如果上一个地址不成功，可使用如下命令，其中的下载地址已经从Github替换为其他下载地址：
 
 ```
 ClusterName=eksworkshop
@@ -18,19 +30,7 @@ FluentBitReadFromHead='Off'
 curl https://myworkshop.bitipcman.com/eks101/cwagent-fluent-bit-quickstart.yaml | sed 's/{{cluster_name}}/'${ClusterName}'/;s/{{region_name}}/'${RegionName}'/;s/{{http_server_toggle}}/"'${FluentBitHttpServer}'"/;s/{{http_server_port}}/"'${FluentBitHttpPort}'"/;s/{{read_from_head}}/"'${FluentBitReadFromHead}'"/;s/{{read_from_tail}}/"'${FluentBitReadFromTail}'"/' | kubectl apply -f - 
 ```
 
-AWS中国区域有时候存在下载速度问题，如果上一个地址不成功，可使用如下命令：
-
-```
-ClusterName=eksworkshop
-RegionName=ap-southeast-1
-FluentBitHttpPort='2020'
-FluentBitReadFromHead='Off'
-[[ ${FluentBitReadFromHead} = 'On' ]] && FluentBitReadFromTail='Off'|| FluentBitReadFromTail='On'
-[[ -z ${FluentBitHttpPort} ]] && FluentBitHttpServer='Off' || FluentBitHttpServer='On'
-curl https://myworkshop.bitipcman.com/eks101/cwagent-fluent-bit-quickstart-cn.yaml | sed 's/{{cluster_name}}/'${ClusterName}'/;s/{{region_name}}/'${RegionName}'/;s/{{http_server_toggle}}/"'${FluentBitHttpServer}'"/;s/{{http_server_port}}/"'${FluentBitHttpPort}'"/;s/{{read_from_head}}/"'${FluentBitReadFromHead}'"/;s/{{read_from_tail}}/"'${FluentBitReadFromTail}'"/' | kubectl apply -f - 
-```
-
-部署完成。
+至此部署完成。
 
 ### 3、查看Container Insight监控效果
 
