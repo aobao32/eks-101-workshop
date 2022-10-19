@@ -32,7 +32,7 @@ spec:
         effect: "PreferNoSchedule"
       containers:
       - name: demo-nginx-spot
-        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
+        image: public.ecr.aws/nginx/nginx:1.23-alpine
         ports:
         - containerPort: 80
         resources:

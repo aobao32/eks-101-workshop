@@ -2,30 +2,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-nginx-on-demand
+  name: demo-nginx-spot
   labels:
-    app: demo-nginx-on-demand
+    app: demo-nginx-spot
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: demo-nginx-on-demand
+      app: demo-nginx-spot
   template:
     metadata:
       labels:
-        app: demo-nginx-on-demand
+        app: demo-nginx-spot
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: eks.amazonaws.com/capacityType
-                operator: In
-                values:
-                - ON_DEMAND
+      nodeSelector:
+        intent: apps
       containers:
-      - name: demo-nginx-on-demand
+      - name: demo-nginx-spot
         image: public.ecr.aws/nginx/nginx:1.23-alpine
         ports:
         - containerPort: 80
@@ -37,12 +30,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: "demo-nginx-on-demand"
+  name: "demo-nginx-spot"
   annotations:
         service.beta.kubernetes.io/aws-load-balancer-type: nlb
 spec:
   selector:
-    app: demo-nginx-on-demand
+    app: demo-nginx-spot
   type: LoadBalancer
   ports:
   - protocol: TCP
