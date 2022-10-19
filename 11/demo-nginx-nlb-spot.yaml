@@ -1,0 +1,56 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-nginx-spot
+  labels:
+    app: demo-nginx-spot
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-nginx-spot
+  template:
+    metadata:
+      labels:
+        app: demo-nginx-spot
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: eks.amazonaws.com/capacityType
+                operator: In
+                values:
+                - SPOT
+      tolerations:
+      - key: "spotInstance"
+        operator: "Equal"
+        value: "true"
+        effect: "PreferNoSchedule"
+      containers:
+      - name: demo-nginx-spot
+        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2G
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "demo-nginx-spot"
+  annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  selector:
+    app: demo-nginx-spot
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80

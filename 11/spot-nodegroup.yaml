@@ -1,0 +1,29 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop
+  region: ap-southeast-1
+  version: "1.23"
+
+managedNodeGroups:
+  - name: spot1
+    labels:
+      Name: spot1
+    instanceTypes: ["m4.2xlarge","m5.2xlarge","m5d.2xlarge"]
+    spot: true
+    minSize: 3
+    desiredCapacity: 3
+    maxSize: 6
+    volumeType: gp3
+    volumeSize: 100
+    tags:
+      nodegroup-name: spot1
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        efs: true
+        albIngress: true
+        xRay: true
+        cloudWatch: true
