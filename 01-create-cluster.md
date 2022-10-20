@@ -295,7 +295,47 @@ kubectl delete -f https://myworkshop.bitipcman.com/eks101/kubernetes-dashboard.y
 
 这个测试应用将在当前集群的两个node上创建nginx应用pod，并使用default namespace运行Service，然后通过NodePort模式和NLB对外发布在80端口。
 
-本实验所使用的ngix-nlb.yaml配置文件与本文末尾的参考资料中Github上AWS官方Workshop内的配置有所不同，因为K8S的API版本从beta v1演进到v1，因此需要修改API Version，且加入selector配置。本实验提供的文件已经完成上述修正。
+内容如下：
+
+```
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: public.ecr.aws/nginx/nginx:1.23-alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "service-nginx"
+  annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  selector:
+    app: nginx
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+```
 
 执行如下命令。
 

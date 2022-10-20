@@ -1,4 +1,4 @@
-# 使用Karpenter+HPA实现平滑的集群扩展
+# 使用Karpenter+HPA实现EKS集群扩展
 
 ## 一、背景
 
@@ -80,7 +80,7 @@ eksctl create cluster -f newcluster.yaml
 
 以上命令会新建一个VPC，并在其中创建一个On-demand模式的NodeGroup节点组。
 
-### 2、创建测试应用
+### 2、在On-demand的NodeGroup上创建测试应用
 
 为了验证节点组的工作正常，我们可启动一个测试应用程序在这一组NodeGroup上运行。
 
@@ -326,11 +326,12 @@ replicaset.apps/karpenter-7f4dbb74b6   2         2         2       81s
 
 这里需要注意，Karpenter需要有2个控制器同时运行，才可以确保高可用。否则遇到单个Node节点故障，可能正好Karpenter的控制器也在故障节点上，那么将影响集群缩放。
 
-#### （7）部署Karpenter Provsioner指定Node配置
+#### （8）部署Karpenter Provsioner指定Node配置
 
-编辑如下保存为`provisioner.yaml`文件：
+执行以下命令启动Provisioner：
 
 ```
+cat <<EOF | kubectl apply -f -
 apiVersion: karpenter.sh/v1alpha5
 kind: Provisioner
 metadata:
@@ -367,15 +368,22 @@ spec:
     KarpenerProvisionerName: "default"
     NodeType: "karpenter-workshop"
     IntentLabel: "apps"
+EOF
 ```
 
-保存完毕后，运行如下文件：
+请注意在以上命令中，包含了从环境变量中自动获取的集群名称，因此如果是手工保存到本地后执行时候，请手工替换集群名称。
+
+#### （9）指定特定机型的配置的方法（可选）
+
+在以上配置文件中，表示Karpenter将启动Spot实例，并且自动匹配的机型将不包括`[nano, micro, small, medium, large]`系列机型。如下一段
 
 ```
-kubectl apply -f provisioner.yaml
+    - key: karpenter.k8s.aws/instance-size
+      operator: NotIn
+      values: [nano, micro, small, medium, large]
 ```
 
-在以上配置文件中，表示Karpenter将启动Spot实力，并且自动匹配的机型将不包括`[nano, micro, small, medium, large]`系列。
+这一段配置文件可进行相应的修改，以指定特殊机型清单，建议始终指定较多的机型清单，以增加Spot获取成功概率。更多参数写法，请参考Karpenter官方文档[这里](https://karpenter.sh/v0.16.0/tasks/scheduling/#selecting-nodes)。
 
 至此Karpenter部署完成。
 
@@ -405,7 +413,7 @@ spec:
         intent: apps
       containers:
       - name: demo-nginx-nlb-karpenter
-        image: registry.k8s.io/hpa-example
+        image: public.ecr.aws/bitnami/apache:latest
         ports:
         - containerPort: 80
         resources:
@@ -573,10 +581,10 @@ kubectl get apiservice v1beta1.metrics.k8s.io -o json | jq '.status'
 
 ### 3、配置性能监控并设置HPA弹性阈值
 
-执行如下命令。其中`min=1`表示最小1个pod，`max=10`表示最大10个pod。同时还需要替换其中的deployment名称：
+执行如下命令。其中`min=1`表示最小1个pod，`max=10`表示最大10个pod，`--cpu-percent=30`表示CPU达到30%的阈值后触发扩容。此外如果使用了其他的部署名称，还需要替换命令中的deployment名称：
 
 ```
-kubectl autoscale deployment demo-nginx-nlb-karpenter --cpu-percent=50 --min=1 --max=10
+kubectl autoscale deployment demo-nginx-nlb-karpenter --cpu-percent=30 --min=1 --max=10
 ```
 
 配置完毕后，可通过如下命令查看HPA的信息：
@@ -640,6 +648,9 @@ HorizontalPodAutoscaler Walkthrough:
 
 [https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/)
 
+Karpenter Provisioner指定EC2机型、架构、配置等参数：
+
+[https://karpenter.sh/v0.16.0/tasks/scheduling/#selecting-nodes](https://karpenter.sh/v0.16.0/tasks/scheduling/#selecting-nodes)
 
 --------------
 
