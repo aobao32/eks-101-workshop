@@ -13,19 +13,32 @@ EKS的弹性有两种方式：
 
 本实验流程如下：
 
-- 1、部署一个Nginx应用
-- 2、手工修改replica参数，测试Karpenter对节点的扩容和Spot节点的使用
-- 3、配置HPA，施加访问压力，触发HPA对应用deployment的replica自动扩容，并由Karpenter触发新的Spot节点扩容
+- 1、创建一个EKS集群，大部分使用默认值，自带一个On-Demand形式的NodeGroup节点组（生产环境下一般会购买RI预留实例与之匹配），集群不部署ALB Controller、其他CNI、CSI等插件，因为Karpenter和HPA与这个话题无关
+- 2、安装Karpenter，部署一个Nginx应用，由Karpenter自动调度Spot节点
+- 3、手工修改replica参数，测试Karpenter扩容调度更多节点
+- 4、配置HPA
+- 5、创建一个生成负载的Pod作为负载发生器
+- 6、从负债发生器对应用施加访问压力，触发HPA对应用deployment的replica自动扩容，并由Karpenter触发新的Spot节点扩容，观察以上现象确认运行正常
 
 ## 二、环境准备
 
 使用默认配置创建一个EKS集群，网络方面使用新的VPC的配置，简化实验过程。
 
+执行如下命令：
+
+```
+
+```
+
 ## 三、部署Karpenter负责并使用Spot节点
 
 ### 1、安装Karpenter
 
+执行如下命令：
 
+```
+
+```
 
 ### 2、部署测试应用
 
@@ -40,7 +53,7 @@ metadata:
   labels:
     app: demo-nginx-nlb-karpenter
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: demo-nginx-nlb-karpenter
@@ -53,11 +66,14 @@ spec:
         intent: apps
       containers:
       - name: demo-nginx-nlb-karpenter
-        image: public.ecr.aws/nginx/nginx:1.23-alpine
+        image: registry.k8s.io/hpa-example
         ports:
         - containerPort: 80
         resources:
           limits:
+            cpu: "1"
+            memory: 2G
+          requests:
             cpu: "1"
             memory: 2G
 ---
@@ -89,7 +105,7 @@ kubectl apply -f demo-nginx-nlb-karpenter.yaml
 kubectl get service
 ```
 
-从返回的多条结果中，查找名为`demo-nginx-nlb-karpenter`的应用对应的ALB，例如如下：
+返回结果可能会包含多个不同的服务，查找名为`demo-nginx-nlb-karpenter`的应用对应的ALB，例如如下：
 
 ```
 NAME                       TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE
@@ -125,10 +141,10 @@ kubectl get pods -A
 kubectl get pod -l app=demo-nginx-nlb-karpenter
 ```
 
-执行如下命令可查看Node：
+执行如下命令可通过限定特定的标签，查看Karpenter扩容出来的Spot节点Node：
 
 ```
-kubectl get nodes
+kubectl get node -l karpenter.sh/capacity-type=spot
 ```
 
 ### 5、查看Karpenter日志（可选）
@@ -175,7 +191,7 @@ kubectl patch configmap config-logging -n karpenter --patch '{"data":{"loglevel.
 kubectl scale deployment demo-nginx-nlb-karpenter --replicas 1
 ```
 
-## 四、部署HPA
+## 四、部署HPA并测试扩展
 
 接下来部署HPA过程中，将继续使用上文配置Karpenter的应用作为被测试的用例。先
 
@@ -216,15 +232,7 @@ kubectl get apiservice v1beta1.metrics.k8s.io -o json | jq '.status'
 
 如果没有获得以上结果，那么需要继续等待启动完成。
 
-### 3、调低当前部署测试应用的CPU性能，以更快触发负载
-
-执行如下命令，请替换其中的deployment名称：
-
-```
-kubectl set resources deploy demo-nginx-nlb-karpenter --requests=cpu=200m
-```
-
-### 4、配置性能监控并设置HPA弹性阈值
+### 3、配置性能监控并设置HPA弹性阈值
 
 执行如下命令。其中`min=1`表示最小1个pod，`max=10`表示最大10个pod。同时还需要替换其中的deployment名称：
 
@@ -238,8 +246,80 @@ kubectl autoscale deployment demo-nginx-nlb-karpenter --cpu-percent=50 --min=1 -
 kubectl get hpa
 ```
 
-### 5、施加负载
+### 4、使用额外的EC2作为外部的负载生成器
+
+负载生成器可以使用普通的EC2进行，只要能部署apache benchmark工具即可。也可以在本VPC之外的其他位置，通过网络访问NLB即可。压力测试建议不要跨region，在本region获得最大压力效果。
+
+本例中，建议创建一台EC2，使用m5或者c5.2xlarge规格，系统选择为Amazon Linux 2操作系统。我们将使用Apache Benchmark（简称ab）发起压力测试。执行如下命令安装客户端：
+
+```
+yum update -y
+yum install httpd
+```
+
+安装完成后，执行如下命令生成压力，请替换访问地址为上一步的NLB地址
+
+```
+ab -n 1000000 -c 100 http://a44c5e6ec923a442a8204ae6eb10dcf7-a98659c1108f3882.elb.ap-southeast-1.amazonaws.com/
+```
+
+### 5、观察压力导致的扩容
+
+使用如下命令观察Metrics Server、CPU负载以及Deployment的Replica的数量：
+
+```
+kubectl get hpa -w
+```
+
+注意以上命令为不断刷新，新的一行为最新数据。
+
+使用如下命令观察Deployment的Replica对应的Pod数量：
+
+```
+kubectl get pod -l app=demo-nginx-nlb-karpenter
+```
+
+使用如下命令观察Karpenter扩充的Spot节点：
+
+```
+kubectl get node -l karpenter.sh/capacity-type=spot
+```
+
+以上信息可看到，HPA和Karpenter扩展了新的Spot节点，为负载压力提供了支持。
+
+## 五、参考文档
+
+Karpenter:
+
+[https://www.eksworkshop.com/beginner/085_scaling_karpenter/](https://www.eksworkshop.com/beginner/085_scaling_karpenter/)
+
+HPA:
+
+[https://www.eksworkshop.com/beginner/080_scaling/](https://www.eksworkshop.com/beginner/080_scaling/)
+
+HorizontalPodAutoscaler Walkthrough:
+
+[https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/)
 
 
+--------------
 
-## 五、
+本次实验的负载生成器使用容器实现。以创建的集群自带的On-Demand的NodeGroup作为环境，在其上部署容器作为压力客户端，然后从On-demand的NodeGroup节点组对Spot节点组上的应用进行施压。
+
+执行如下命令启动负载生成器。
+
+```
+kubectl run -i --tty load-generator --image=public.ecr.aws/bitnami/apache:latest /bin/sh
+```
+
+如果断开了shell，希望重新登录到shell，可以使用如下命令：
+
+```
+kubectl attach load-generator -c load-generator -i -t
+```
+
+执行如下命令删除负载生成器
+
+```
+kubectl delete pod load-generator
+```

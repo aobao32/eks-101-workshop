@@ -6,7 +6,7 @@ metadata:
   labels:
     app: demo-nginx-nlb-karpenter
 spec:
-  replicas: 6
+  replicas: 1
   selector:
     matchLabels:
       app: demo-nginx-nlb-karpenter
@@ -24,6 +24,9 @@ spec:
         - containerPort: 80
         resources:
           limits:
+            cpu: "1"
+            memory: 2G
+          requests:
             cpu: "1"
             memory: 2G
 ---
