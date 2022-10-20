@@ -1,0 +1,43 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop
+  region: ap-southeast-1
+  version: "1.23"
+
+vpc:
+  clusterEndpoints:
+    publicAccess:  true
+    privateAccess: true
+
+kubernetesNetworkConfig:
+  serviceIPv4CIDR: 10.50.0.0/24
+
+managedNodeGroups:
+  - name: ng1-od
+    labels:
+      Name: ng1-od
+    instanceType: t3.xlarge
+    minSize: 2 
+    desiredCapacity: 2
+    maxSize: 4
+    volumeType: gp3
+    volumeSize: 100
+    tags:
+      nodegroup-name: ng1-od
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        certManager: true
+        efs: true
+        ebs: true
+        albIngress: true
+        xRay: true
+        cloudWatch: true
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+    logRetentionInDays: 30

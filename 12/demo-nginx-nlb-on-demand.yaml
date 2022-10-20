@@ -1,0 +1,50 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-nginx-on-demand
+  labels:
+    app: demo-nginx-on-demand
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-nginx-on-demand
+  template:
+    metadata:
+      labels:
+        app: demo-nginx-on-demand
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: eks.amazonaws.com/capacityType
+                operator: In
+                values:
+                - ON_DEMAND
+      containers:
+      - name: demo-nginx-on-demand
+        image: public.ecr.aws/nginx/nginx:1.23-alpine
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2G
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "demo-nginx-on-demand"
+  annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  selector:
+    app: demo-nginx-on-demand
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80

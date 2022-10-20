@@ -22,27 +22,127 @@ EKS的弹性有两种方式：
 
 ## 二、环境准备
 
+### 1、创建新集群
+
 使用默认配置创建一个EKS集群，网络方面使用新的VPC的配置，简化实验过程。编辑如下配置文件，保存为`newcluster.yaml`
 
 ```
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop
+  region: ap-southeast-1
+  version: "1.23"
+
+vpc:
+  clusterEndpoints:
+    publicAccess:  true
+    privateAccess: true
+
+kubernetesNetworkConfig:
+  serviceIPv4CIDR: 10.50.0.0/24
+
+managedNodeGroups:
+  - name: ng1-od
+    labels:
+      Name: ng1-od
+    instanceType: t3.xlarge
+    minSize: 2 
+    desiredCapacity: 2
+    maxSize: 4
+    volumeType: gp3
+    volumeSize: 100
+    tags:
+      nodegroup-name: ng1-od
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        certManager: true
+        efs: true
+        ebs: true
+        albIngress: true
+        xRay: true
+        cloudWatch: true
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+    logRetentionInDays: 30
 ```
 
 执行如下命令：
 
 ```
-esksctl create cluster -f newcluster.yaml
+eksctl create cluster -f newcluster.yaml
 ```
 
-以上命令会新建一个VPC，并在其中创建一个On-demand模式的NodeGroup节点组。为了验证节点组的工作正常过，我们可启动一个测试应用程序在这一组NodeGroup上运行。
+以上命令会新建一个VPC，并在其中创建一个On-demand模式的NodeGroup节点组。
 
-编辑如下配置文件，并保存为`.yaml`文件：
+### 2、创建测试应用
+
+为了验证节点组的工作正常，我们可启动一个测试应用程序在这一组NodeGroup上运行。
+
+编辑如下配置文件，并保存为`demo-nginx-nlb-on-demand.yaml`文件：
 
 ```
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-nginx-on-demand
+  labels:
+    app: demo-nginx-on-demand
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-nginx-on-demand
+  template:
+    metadata:
+      labels:
+        app: demo-nginx-on-demand
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: eks.amazonaws.com/capacityType
+                operator: In
+                values:
+                - ON_DEMAND
+      containers:
+      - name: demo-nginx-on-demand
+        image: public.ecr.aws/nginx/nginx:1.23-alpine
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2G
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "demo-nginx-on-demand"
+  annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  selector:
+    app: demo-nginx-on-demand
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
 ```
 
 执行如下命令部署这个应用：
 
 ```
+kubectl apply -f demo-nginx-nlb-on-demand.yaml
 ```
 
 执行如下命令获取这个应用NLB入口：
@@ -53,53 +153,231 @@ kubectl get service
 
 使用curl或者浏览器访问这个NLB入口，可看到访问成功。
 
-由此创建EKS集群和On-demand模式的节点组完成。
+由此创建EKS集群、On-demand模式和测试应用的工作完成。
 
-## 三、部署Karpenter负责并使用Spot节点
+## 三、部署Karpenter使用Spot实例进行节点扩容
 
 ### 1、安装Karpenter
 
-#### （1）配置IAM Role
+#### （1）设置环境变量
+
+首先配置环境变量，请替换命令中的AWS账户ID、Region等信息：
 
 执行如下命令：
 
 ```
-
+export KARPENTER_VERSION=v0.16.0
+export CLUSTER_NAME=$(eksctl get clusters -o json | jq -r '.[0].Name')
+export ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)
+export AWS_REGION=ap-southeast-1
 ```
 
-#### （2）部署服务
+#### （2）部署KarpenterNode IAM Role
+
+执行如下命令部署KarpenterNode IAM Role：
+
+```
+TEMPOUT=$(mktemp)
+
+curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-started-with-eksctl/cloudformation.yaml  > $TEMPOUT \
+&& aws cloudformation deploy \
+  --stack-name "Karpenter-${CLUSTER_NAME}" \
+  --template-file "${TEMPOUT}" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides "ClusterName=${CLUSTER_NAME}"
+```
+
+这个过程可能持续3-5分钟。如果本账号内之前有集群安装过Karpenter已经部署了这个Role，那么这一步会提示已经完成。
+
+```
+Waiting for changeset to be created..
+No changes to deploy. Stack Karpenter-eksworkshop is up to date
+```
+
+执行如下命令验证部署结果：
+
+```
+kubectl describe configmap -n kube-system aws-auth
+```
+
+在返回结果中，可以看到KarpenterNodeRole已经具有了系统权限。
+
+#### （3）部署KarpenterController IAM Role
+
+在上一步的基础上，保持上述环境变量的配置正确，然后执行如下命令：
+
+```
+eksctl utils associate-iam-oidc-provider --cluster ${CLUSTER_NAME} --approve
+```
+
+返回如下信息表示配置成功：
+
+```
+2022-10-20 18:20:52 [ℹ]  will create IAM Open ID Connect provider for cluster "eksworkshop" in "ap-southeast-1"
+2022-10-20 18:20:55 [✔]  created IAM Open ID Connect provider for cluster "eksworkshop" in "ap-southeast-1"
+```
+
+执行如下命令创建IAM Service Account：
+
+```
+eksctl create iamserviceaccount \
+  --cluster "${CLUSTER_NAME}" --name karpenter --namespace karpenter \
+  --role-name "${CLUSTER_NAME}-karpenter" \
+  --attach-policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}" \
+  --role-only \
+  --approve
+
+export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
+```
+
+这一步可能需要等待2-3分钟，返回如下结果表示配置成功。
+
+```
+2022-10-20 18:23:16 [ℹ]  1 iamserviceaccount (karpenter/karpenter) was included (based on the include/exclude rules)
+2022-10-20 18:23:16 [!]  serviceaccounts that exist in Kubernetes will be excluded, use --override-existing-serviceaccounts to override
+2022-10-20 18:23:16 [ℹ]  1 task: { create IAM role for serviceaccount "karpenter/karpenter" }
+2022-10-20 18:23:16 [ℹ]  building iamserviceaccount stack "eksctl-eksworkshop-addon-iamserviceaccount-karpenter-karpenter"
+2022-10-20 18:23:16 [ℹ]  deploying stack "eksctl-eksworkshop-addon-iamserviceaccount-karpenter-karpenter"
+2022-10-20 18:23:17 [ℹ]  waiting for CloudFormation stack "eksctl-eksworkshop-addon-iamserviceaccount-karpenter-karpenter"
+2022-10-20 18:23:48 [ℹ]  waiting for CloudFormation stack "eksctl-eksworkshop-addon-iamserviceaccount-karpenter-karpenter"
+2022-10-20 18:24:42 [ℹ]  waiting for CloudFormation stack "eksctl-eksworkshop-addon-iamserviceaccount-karpenter-karpenter"
+```
+
+#### （4）创建允许调用EC2 Spot的角色
 
 执行如下命令：
 
 ```
-
+aws iam create-service-linked-role --aws-service-name spot.amazonaws.com
 ```
 
-#### （3）部署服务
+如果本账号内使用过EC2 Spot，或者别的EKS集群配置过Karpenter，那么这一步会提示角色已经存在，这不会影响使用，可以略过：
+
+```
+An error occurred (InvalidInput) when calling the CreateServiceLinkedRole operation: Service role name AWSServiceRoleForEC2Spot has been taken in this account, please try a different suffix.
+```
+
+#### （5）安装Helm
+
+在Windows、Linux、MacOS平台上安装Helm的方法可能有所不同。
+
+本文以Linux为例，执行如下命令：
+
+```
+curl -sSL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+helm repo add stable https://charts.helm.sh/stable
+helm search repo stable
+helm repo add karpenter https://charts.karpenter.sh/
+helm repo update
+```
+
+如果本机在以前安装过Helm，可执行`helm repo update`命令更新软件仓库。
+
+#### （6）通过Helm安装Karpenter
+
+```
+helm upgrade --install --namespace karpenter --create-namespace \
+  karpenter karpenter/karpenter \
+  --version ${KARPENTER_VERSION} \
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
+  --set clusterName=${CLUSTER_NAME} \
+  --set clusterEndpoint=$(aws eks describe-cluster --name ${CLUSTER_NAME} --query "cluster.endpoint" --output json) \
+  --set defaultProvisioner.create=false \
+  --set aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
+  --wait # for the defaulting webhook to install before creating a Provisioner
+```
+
+返回如下结果表示部署完成。
+
+```
+Release "karpenter" does not exist. Installing it now.
+NAME: karpenter
+LAST DEPLOYED: Thu Oct 20 18:33:26 2022
+NAMESPACE: karpenter
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+```
+
+#### （7）验证Karpenter启动正常
 
 执行如下命令：
 
 ```
-
+kubectl get all -n karpenter
 ```
 
-#### （4）部署服务
-
-执行如下命令：
+返回结果如下：
 
 ```
+NAME                             READY   STATUS    RESTARTS   AGE
+pod/karpenter-7f4dbb74b6-nbvnk   2/2     Running   0          80s
+pod/karpenter-7f4dbb74b6-rr7wh   2/2     Running   0          80s
 
+NAME                TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)            AGE
+service/karpenter   ClusterIP   10.50.0.159   <none>        8080/TCP,443/TCP   81s
+
+NAME                        READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/karpenter   2/2     2            2           81s
+
+NAME                                   DESIRED   CURRENT   READY   AGE
+replicaset.apps/karpenter-7f4dbb74b6   2         2         2       81s
 ```
 
-#### （5）部署服务
+这里需要注意，Karpenter需要有2个控制器同时运行，才可以确保高可用。否则遇到单个Node节点故障，可能正好Karpenter的控制器也在故障节点上，那么将影响集群缩放。
 
-执行如下命令：
+#### （7）部署Karpenter Provsioner指定Node配置
+
+编辑如下保存为`provisioner.yaml`文件：
 
 ```
-
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  labels:
+    intent: apps
+  requirements:
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["spot"]
+    - key: karpenter.k8s.aws/instance-size
+      operator: NotIn
+      values: [nano, micro, small, medium, large]
+  limits:
+    resources:
+      cpu: 1000
+      memory: 1000Gi
+  ttlSecondsAfterEmpty: 30
+  ttlSecondsUntilExpired: 2592000
+  providerRef:
+    name: default
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    alpha.eksctl.io/cluster-name: ${CLUSTER_NAME}
+  securityGroupSelector:
+    alpha.eksctl.io/cluster-name: ${CLUSTER_NAME}
+  tags:
+    KarpenerProvisionerName: "default"
+    NodeType: "karpenter-workshop"
+    IntentLabel: "apps"
 ```
 
-支持Karpenter部署完成。
+保存完毕后，运行如下文件：
+
+```
+kubectl apply -f provisioner.yaml
+```
+
+在以上配置文件中，表示Karpenter将启动Spot实力，并且自动匹配的机型将不包括`[nano, micro, small, medium, large]`系列。
+
+至此Karpenter部署完成。
 
 ### 2、部署测试应用
 
@@ -254,7 +532,7 @@ kubectl scale deployment demo-nginx-nlb-karpenter --replicas 1
 
 ## 四、部署HPA并测试扩展
 
-接下来部署HPA过程中，将继续使用上文配置Karpenter的应用作为被测试的用例。先
+接下来部署HPA过程中，将继续使用上文配置Karpenter的应用作为被测试的用例。
 
 ### 1、部署Metrics Server
 
