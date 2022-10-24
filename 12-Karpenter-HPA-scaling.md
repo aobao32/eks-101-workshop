@@ -548,9 +548,6 @@ kubectl scale deployment demo-nginx-nlb-karpenter --replicas 1
 
 ```
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-
-# 备选旧版本
-# kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.5.0/components.yaml
 ```
 
 ### 2、确认Metrics Server运行正常
@@ -652,24 +649,3 @@ Karpenter Provisioner指定EC2机型、架构、配置等参数：
 
 [https://karpenter.sh/v0.16.0/tasks/scheduling/#selecting-nodes](https://karpenter.sh/v0.16.0/tasks/scheduling/#selecting-nodes)
 
---------------
-
-本次实验的负载生成器使用容器实现。以创建的集群自带的On-Demand的NodeGroup作为环境，在其上部署容器作为压力客户端，然后从On-demand的NodeGroup节点组对Spot节点组上的应用进行施压。
-
-执行如下命令启动负载生成器。
-
-```
-kubectl run -i --tty load-generator --image=public.ecr.aws/bitnami/apache:latest /bin/sh
-```
-
-如果断开了shell，希望重新登录到shell，可以使用如下命令：
-
-```
-kubectl attach load-generator -c load-generator -i -t
-```
-
-执行如下命令删除负载生成器
-
-```
-kubectl delete pod load-generator
-```
