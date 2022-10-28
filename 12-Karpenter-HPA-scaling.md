@@ -1,4 +1,4 @@
-# 使用Karpenter+HPA实现EKS集群扩展
+# EKS 101动手实验（十二）使用Karpenter+HPA实现EKS集群扩展
 
 ## 一、背景
 
