@@ -18,7 +18,7 @@ EKS的弹性有两种方式：
 - 3、手工修改replica参数，测试Karpenter扩容调度更多节点
 - 4、配置HPA
 - 5、创建一个生成负载的Pod作为负载发生器
-- 6、从负债发生器对应用施加访问压力，触发HPA对应用deployment的replica自动扩容，并由Karpenter触发新的Spot节点扩容，观察以上现象确认运行正常
+- 6、从负载发生器对应用施加访问压力，触发HPA对应用deployment的replica自动扩容，并由Karpenter触发新的Spot节点扩容，观察以上现象确认运行正常
 
 ## 二、环境准备
 

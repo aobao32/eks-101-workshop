@@ -25,3 +25,5 @@ EKS101动手实验：
 [实验10、在EKS上的ELB获取最终用户的真实IP地址](https://github.com/aobao32/eks-101-workshop/blob/main/10-get-client-real-ip-behind-ELB.md)
 
 [实验11、为NodeGroup使用EC2 Spot实例](https://github.com/aobao32/eks-101-workshop/blob/main/11-Use-spot-for-nodegroup.md)
+
+[实验12、使用Karpenter+HPA实现EKS集群扩展](https://github.com/aobao32/eks-101-workshop/blob/main/12-Karpenter-HPA-scaling.md)
