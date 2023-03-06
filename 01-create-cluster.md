@@ -1,6 +1,6 @@
 # 实验一、创建EKS集群
 
-EKS 1.22版本 @2022-04 Global区域和中国区域测试通过
+EKS 1.25版本 @2023-03 Global区域测试通过
 
 ## 一、AWSCLI安装和准备
 
@@ -63,15 +63,17 @@ eksctl version
 
 ```
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-brew tap weaveworks/tap
-brew install weaveworks/tap/eksctl
-curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/darwin/amd64/kubectl
+brew upgrade eksctl && { brew link --overwrite eksctl; } || { brew tap weaveworks/tap; brew install weaveworks/tap/eksctl; }
+eksctl version
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.25.6/2023-01-30/bin/darwin/amd64/kubectl
+kubectl version --short --client
 chmod 755 kubectl
-sudo mv kubectl /bin
 eksctl version
 ```
 
-## 三、创建EKS集群（两种场景二选一）
+## 三、创建有EC2的EKS集群（两种场景二选一）
+
+EKS集群分成有EC2和无EC2的Fargate模式。本文为有EC2模式的配置。
 
 创建集群时候，eksctl默认会自动生成一个新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup。如果希望使用新VPc，请参考本章节小标题1。如果希望使用现有VPC，请使用本章节小标题2。
 
@@ -88,7 +90,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.23"
+  version: "1.25"
 
 vpc:
   clusterEndpoints:
@@ -166,7 +168,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.23"
+  version: "1.25"
 
 vpc:
   clusterEndpoints:
@@ -238,7 +240,7 @@ ip-192-168-137-83.ap-southeast-1.compute.internal    Ready    <none>   159m   v1
 ip-192-168-181-37.ap-southeast-1.compute.internal    Ready    <none>   159m   v1.22.6-eks-7d68063
 ```
 
-## 四、创建集群并配置Dashboard图形界面
+## 四、创建集群并配置Dashboard图形界面（整个章节为可选操作）
 
 ### 1、部署K8S原生控制面板
 
@@ -293,7 +295,7 @@ kubectl delete -f https://myworkshop.bitipcman.com/eks101/kubernetes-dashboard.y
 
 ### 1、创建服务
 
-这个测试应用将在当前集群的两个node上创建nginx应用pod，并使用default namespace运行Service，然后通过NodePort模式和NLB对外发布在80端口。
+这个测试应用将在当前集群的node上创建nginx应用pod，并使用default namespace运行Service，然后通过NodePort模式和NLB对外发布在80端口。
 
 内容如下：
 

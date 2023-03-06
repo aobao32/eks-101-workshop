@@ -4,7 +4,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.23"
+  version: "1.25"
 
 vpc:
   clusterEndpoints:
@@ -18,7 +18,7 @@ managedNodeGroups:
   - name: managed-ng
     labels:
       Name: managed-ng
-    instanceType: m5.2xlarge
+    instanceType: t3.xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
