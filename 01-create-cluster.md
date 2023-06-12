@@ -1,8 +1,8 @@
 # 实验一、创建EKS集群
 
-EKS 1.25版本 @2023-03 Global区域测试通过
+EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
-## 一、AWSCLI安装和准备
+## 一、AWSCLI安装和AKSK准备
 
 ### 1、客户端下载
 
@@ -10,11 +10,15 @@ EKS 1.25版本 @2023-03 Global区域测试通过
 
 ### 2、配置AKSK和区域
 
-安装CLI完毕后，配置进入AWS控制台，创建IAM用户，生成AKSK密钥。安装好AWSCLI，并填写正确的AKSK。同时，在命令`aws configure`的最后一步配置region的时候，设置region为本次实验的`ap-southeast-1`。
+配置进入AWS控制台，创建IAM用户，附加`AdministratorAccess`的IAM Policy，最后给这个用户生成AKSK密钥。
 
-## 二、安装EKS客户端（三个OS类型根据实验者选择其一）
+在安装好AWSCLI的客户端上，进入命令行窗口，执行`aws configure`，然后填写正确的AKSK。同时，在命令的最后一步配置region的时候，设置region为本次实验的`ap-southeast-1`。
 
-请注意，eksctl版本0.92以下版本只支持创建EKS版本1.21。可使用`eksctl version`命令查询自己的版本。如果需要创建EKS 1.22版本集群，请安装eksctl客户端或升级到0.92版本。
+请注意：如果是通过EventEngine或者Workshop Studio自动创建的实验环境，在EventEngine或者Workshop Studio界面上会提供一套默认的AKSK密钥，且这套AKSK需要搭配SessionToken使用。这套默认的密钥权限是不足以完成EKS集群创建的。因此，必须按照本文要求，重新创建一个新的管理员用户，然后新创建一个AKSK附加到本用户，才可以进行后续实验。
+
+## 二、安装EKS客户端和Kubectl客户端（三个OS类型根据实验者选择其一）
+
+请注意，eksctl版本和创建EKS的版本有对应关系，因此请升级您的客户端的eksctl到最新版本。
 
 ### 1、Windows下安装eksctl和kubectl工具
 
@@ -31,16 +35,6 @@ choco install -y eksctl jq curl wget vim 7zip
 ```
 
 此外很多日常软件都可以后续执行`choco install`安装。
-
-如果您的网速不好，可能choco安装程序会失败，这是因为choco安装包后台调用的是github的服务器，可能在国内无法访问海外。因此，此时可从如下国内地址下载：
-
-下载eksctl：
-
-```
-curl -o kubectl.exe https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/windows/amd64/kubectl.exe
-```
-
-请将下载后的两个文件复制到 `C:\windows\system32` 目录下，由此便可在任意路径下调用。
 
 ### 2、Linux下安装eksctl和kubectl工具
 
@@ -71,13 +65,14 @@ chmod 755 kubectl
 eksctl version
 ```
 
-## 三、创建有EC2的EKS集群（两种场景二选一）
+## 三、创建EKS集群的配置文件（两种场景二选一）
 
-EKS集群分成有EC2和无EC2的Fargate模式。本文为有EC2模式的配置。
+EKS集群分成EC2模式和无EC2的Fargate模式。本文为有EC2模式的配置，不讨论Fargate配置。在接下来的网络模式又有两种：
 
-创建集群时候，eksctl默认会自动生成一个新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup。如果希望使用新VPc，请参考本章节小标题1。如果希望使用现有VPC，请使用本章节小标题2。
+- 创建集群时候，如果不指定参数，那么eksctl默认会自动生成一个全新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup节点组。此时如果希望位于默认VPC的现有业务系统与EKS互通，那么需要配置VPC Peering才可以打通网络；如果需求是此场景，请参考下述第一个章节所介绍的方式创建配置文件
+- 如果希望EKS使用现有VPC和子网，例如一个包含有Public Subnet/Private Subnet和NAT Gateway的VPC，那么请使用第二个章节所介绍的方式创建配置文件
 
-### 1、创建新VPC和子网并创建EKS集群
+### 1、创建全新VPC
 
 执行如下命令。注意如果是多人在同一个账号内实验，需要更改EKS集群的名字避免冲突。如果多人在不同账号内做实验，无需修改名称，默认的名称即可。
 
@@ -90,7 +85,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.25"
+  version: "1.27"
 
 vpc:
   clusterEndpoints:
@@ -104,7 +99,7 @@ managedNodeGroups:
   - name: managed-ng
     labels:
       Name: managed-ng
-    instanceType: m5.2xlarge
+    instanceType: t3.xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
@@ -139,7 +134,7 @@ eksctl create cluster -f newvpc.yaml
 
 创建完成。
 
-### 2、使用现有VPC的子网创建EKS集群
+### 2、使用现有VPC的子网
 
 #### （1）给EKS要使用的Subnet子网打标签
 
@@ -157,7 +152,9 @@ eksctl create cluster -f newvpc.yaml
 
 接下来请重复以上工作，三个AZ的子网都实施相同的配置，注意第一项标签值都是1。
 
-#### （2）创建配置文件
+请不要跳过以上步骤，否则后续使用ELB会遇到错误。
+
+#### （2）要求EKS Nodegroup使用特定的Subnet
 
 编辑配置文件`existingsubnet.yaml`，内容如下：
 
@@ -168,7 +165,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.25"
+  version: "1.27"
 
 vpc:
   clusterEndpoints:
@@ -223,7 +220,7 @@ eksctl create cluster -f existingsubnet.yaml
 
 创建完成。
 
-### 3、查看创建结果
+## 四、查看创建结果
 
 此过程需要10-15分钟才可以创建完毕。执行如下命令查询节点。
 
@@ -240,21 +237,31 @@ ip-192-168-137-83.ap-southeast-1.compute.internal    Ready    <none>   159m   v1
 ip-192-168-181-37.ap-southeast-1.compute.internal    Ready    <none>   159m   v1.22.6-eks-7d68063
 ```
 
-## 四、创建集群并配置Dashboard图形界面（整个章节为可选操作）
+## 五、创建集群并配置Dashboard图形界面（本章节可选）
+
+本章节可跳过不影响后续实验。
 
 ### 1、部署K8S原生控制面板
 
-Github上AWS官方Workshop的实验脚本中，采用的是直接调用Github托管的yaml文件，其域名是`raw.githubusercontent.com`。在国内网络条件下访问这个网址可能会失败。
+执行如下命令部署Dashboard：
+
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+```
+
+在以上命令中，采用的是直接调用Github托管的yaml文件，其域名是`raw.githubusercontent.com`。在国内网络条件下访问这个网址可能会失败。
 
 因此本实验另外提供了另外的网址可在国内的yaml文件。请执行如下命令开始启动。
 
 ```
-kubectl apply -f https://myworkshop.bitipcman.com/eks101/kubernetes-dashboard.yaml
+kubectl apply -f https://myworkshop.bitipcman.com/eks101/01/kubernetes-dashboard.yaml
 ```
 
-部署需要等待3-5分钟。访问Dashboard的身份验证是通过token完成，执行以下命令获取token。注意需要手工替换EKS集群名称和region名称为实际操作环境。如果集群名称、Region信息不匹配，生成的token会报告401错误无法登录。
+部署需要等待3-5分钟。
 
 ### 2、登录到Dashboard
+
+访问Dashboard的身份验证是通过token完成，执行以下命令获取token。注意需要手工替换EKS集群名称和region名称为实际操作环境。如果集群名称、Region信息不匹配，生成的token会报告401错误无法登录。
 
 ```
 aws eks get-token --cluster-name eksworkshop --region ap-southeast-1 | jq -r .status.token
@@ -291,7 +298,7 @@ kubectl delete -f https://myworkshop.bitipcman.com/eks101/kubernetes-dashboard.y
 
 本命令为可选，建议保留Dashboard，在后续实验中也可以继续通过Dashboard做监控。
 
-## 五、部署Nginx测试应用并使用NodePort+NLB模式对外暴露服务
+## 六、部署Nginx测试应用并使用NodePort+NLB模式对外暴露服务
 
 ### 1、创建服务
 
@@ -319,7 +326,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: public.ecr.aws/nginx/nginx:1.23-alpine
+        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
         ports:
         - containerPort: 80
 ---
@@ -344,6 +351,8 @@ spec:
 ```
 kubectl apply -f nginx-nlb.yaml 
 ```
+
+### 2、检查部署结果
 
 查看创建出来的pod，执行如下命令。
 
@@ -371,9 +380,11 @@ NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 nginx-deployment   1/1     1            1           9m12s
 ```
 
-### 2、测试从浏览器访问
+### 3、测试从浏览器访问
 
-本实验使用的是NLB，创建NLB过程需要3-5分钟。此时可以通过AWS EC2控制台，进入Load Balance负载均衡界面，可以看到NLB处于Provisioning创建中的状态。等待其变成Active状态。接下来进入NLB的listener界面，可以看到NLB将来自80端口的流量转发到了k8s-default-servicen这个target group。点击进入Target Group，可以看到当前两个node的状态是initial，等待其健康检查完成，变成healthy状态，即可访问。
+本实验使用的是NLB，创建NLB过程需要3-5分钟。此时可以通过AWS EC2控制台，进入Load Balance负载均衡界面，可以看到NLB处于Provisioning创建中的状态。等待其变成Active状态。
+
+接下来进入NLB的listener界面，可以看到NLB将来自80端口的流量转发到了k8s-default-servicen这个target group。点击进入Target Group，可以看到当前两个node的状态是initial，等待其健康检查完成，变成healthy状态，即可访问。
 
 查看运行中的Service，执行如下命令。
 
@@ -396,7 +407,7 @@ service-nginx   LoadBalancer   10.50.0.12   a4fa7cb23a0754d8b8198fad9fa7b133-114
 
 ##### Linux和MacOS操作系统如下命令是通过命令行访问：
 
-获取NLB地址并通过curl访问：
+在Linux的bash/sh/zsh上执行如下脚本，可获取NLB地址并通过curl访问：
 
 ```
 NLB=$(kubectl get service service-nginx -o json | jq -r '.status.loadBalancer.ingress[].hostname')
@@ -420,7 +431,7 @@ curl -m3 -v 上文获取到的NLB入口地址
 
 由此即可访问到测试应用，看到 Welcome to nginx! 即表示访问成功。 
 
-### 4、删除服务
+### 4、删除服务（可选）
 
 执行如下命令：
 
@@ -430,7 +441,7 @@ kubectl delete -f nginx-deployment.yaml
 
 至此服务删除完成。
 
-## 六、参考文档
+## 七、参考文档
 
 AWS GCR Workshop：
 
@@ -439,4 +450,3 @@ AWS GCR Workshop：
 K8S的Dashboard安装：
 
 [https://github.com/kubernetes/dashboard](https://github.com/kubernetes/dashboard)
-
