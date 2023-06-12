@@ -36,14 +36,35 @@ choco install -y eksctl jq curl wget vim 7zip
 
 此外很多日常软件都可以后续执行`choco install`安装。
 
+下载Windows版本的kubectl工具：
+
+```
+curl.exe -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/windows/amd64/kubectl.exe
+```
+
+下载后将`kubectl.exe`放入系统PATH目录，例如`C:\Windows\system32\`，之后即可在任意下执行`kubectl`命令。
+
 ### 2、Linux下安装eksctl和kubectl工具
 
-在Linux下安装eks工具，包括eksctl和kubectl两个。执行如下命令：
+在Linux下安装eks工具，包括eksctl和kubectl两个。
+
+Intel架构的执行如下命令：
 
 ```
 curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
 sudo mv /tmp/eksctl /bin
-curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/amd64/kubectl
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/linux/amd64/kubectl
+chmod 755 kubectl
+sudo mv kubectl /bin
+eksctl version
+```
+
+Graviton2的ARM架构的Linux执行如下命令：
+
+```
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_arm64.tar.gz" | tar xz -C /tmp
+sudo mv /tmp/eksctl /bin
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/linux/arm64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
@@ -59,7 +80,7 @@ eksctl version
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
 brew upgrade eksctl && { brew link --overwrite eksctl; } || { brew tap weaveworks/tap; brew install weaveworks/tap/eksctl; }
 eksctl version
-curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.25.6/2023-01-30/bin/darwin/amd64/kubectl
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/darwin/amd64/kubectl
 kubectl version --short --client
 chmod 755 kubectl
 eksctl version
@@ -450,3 +471,7 @@ AWS GCR Workshop：
 K8S的Dashboard安装：
 
 [https://github.com/kubernetes/dashboard](https://github.com/kubernetes/dashboard)
+
+eksctl的安装：
+
+[https://github.com/weaveworks/eksctl](https://github.com/weaveworks/eksctl)
