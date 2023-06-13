@@ -81,7 +81,7 @@ eksctl create iamserviceaccount \
 
 在之前EKS 1.22～1.25版本上，可通过`Kubernetes manifest`来安装Load Balancer Controller。为了简化部署过程，这里可以使用Helm来安装。以前的安装方法备选，详细信息可从本文末尾的参考文档中获取`Kubernetes manifest`方式。
 
-####（1）安装Helm
+#### （1）安装Helm
 
 在MacOS下执行如下命令：
 
@@ -101,7 +101,7 @@ choco install kubernetes-helm
 sudo dnf install helm
 ```
 
-####（2）安装Helm的软件库
+#### （2）安装Helm的软件库
 
 执行如下命令：
 
@@ -110,7 +110,7 @@ helm repo add eks https://aws.github.io/eks-charts
 helm repo update eks
 ```
 
-####（3）运行Load Balancer Controller
+#### （3）运行Load Balancer Controller
 
 请替换如下命令的集群名称为真实名称：
 
@@ -124,7 +124,7 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 
 注意：如果使用的是EKS Fargate，则还需要添加`--set region=region-code`和`--set vpcId=vpc-xxxxxxxx`两个参数。由于本实验使用的是EKS EC2模式，因此不需要这两个参数了。
 
-####（4）检查部署结果
+#### （4）检查部署结果
 
 在创建AWS Load Balancer Controller后，等待几分钟启动完成，执行如下命令检查部署结果：
 

@@ -426,7 +426,7 @@ service-nginx   LoadBalancer   10.50.0.12   a4fa7cb23a0754d8b8198fad9fa7b133-114
 
 也可以在命令行上通过curl命令访问。
 
-##### Linux和MacOS操作系统如下命令是通过命令行访问：
+#### Linux和MacOS操作系统如下命令是通过命令行访问：
 
 在Linux的bash/sh/zsh上执行如下脚本，可获取NLB地址并通过curl访问：
 
@@ -436,7 +436,7 @@ echo $NLB
 curl -m3 -v $NLB
 ```
 
-##### Windows操作系统如下命令是通过命令行访问：
+#### Windows操作系统如下命令是通过命令行访问：
 
 获取NLB地址：
 
