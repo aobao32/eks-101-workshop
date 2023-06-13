@@ -279,6 +279,24 @@ eksworkshop	managed-ng	ACTIVE	2023-06-12T14:39:13Z	3		9		3			t3.xlarge	AL2_x86_6
 eksworkshop	newng		ACTIVE	2023-06-13T02:12:42Z	3		6		3			t4g.xlarge	AL2_ARM_64	eks-newng-3ac45943-6531-2c65-237c-1596bd61832e		managed
 ```
 
+如果创建的是不同架构的Nodegroup，可以执行如下命令查看节点的属性：
+
+```
+kubectl get nodes --label-columns=kubernetes.io/arch
+```
+
+返回结果如下，可看到最后一列就是对应的机型。
+
+```
+NAME                                                STATUS   ROLES    AGE    VERSION               ARCH
+ip-192-168-0-137.ap-southeast-1.compute.internal    Ready    <none>   169m   v1.27.1-eks-2f008fe   arm64
+ip-192-168-28-249.ap-southeast-1.compute.internal   Ready    <none>   3h4m   v1.27.1-eks-2f008fe   amd64
+ip-192-168-39-199.ap-southeast-1.compute.internal   Ready    <none>   169m   v1.27.1-eks-2f008fe   arm64
+ip-192-168-54-35.ap-southeast-1.compute.internal    Ready    <none>   3h4m   v1.27.1-eks-2f008fe   amd64
+ip-192-168-76-179.ap-southeast-1.compute.internal   Ready    <none>   169m   v1.27.1-eks-2f008fe   arm64
+ip-192-168-81-178.ap-southeast-1.compute.internal   Ready    <none>   3h4m   v1.27.1-eks-2f008fe   amd64
+```
+
 ### 2、驱逐原Nodegroup上的Pod（可选）
 
 本步骤为可选。当通过下文的`eksctl`命令执行删除Nodegroup时候，对应的pod也会被驱逐到新的Nodegroup的健康的节点上。如果您使用K9S等管理工具，也可以从这些管理工具上发起驱逐命令。
