@@ -4,13 +4,13 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.25"
+  version: "1.27"
 
 managedNodeGroups:
   - name: newng
     labels:
       Name: newng
-    instanceType: m5.2xlarge
+    instanceType: t4g.xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
@@ -24,6 +24,7 @@ managedNodeGroups:
         autoScaler: true
         certManager: true
         efs: true
+        ebs: true
         albIngress: true
         xRay: true
         cloudWatch: true
