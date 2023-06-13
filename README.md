@@ -1,6 +1,6 @@
 # eks-101-workshop
 
-@2022-04，要求eksctl版本大于102，支持创建EKS 1.22和AWS ELB Ingress。Global区域(SGP)和中国区(ZHY)测试通过。
+更新到EKS 1.27版本，2023年6月在AWS海外区域测试通过。
 
 EKS101动手实验：
 
@@ -11,6 +11,10 @@ EKS101动手实验：
 [实验3、配置CloudWatch Container Insight & 修改集群规格](https://github.com/aobao32/eks-101-workshop/blob/main/03-monitor-update-node-group.md)
 
 [实验4、在ARM架构上构建应用并使用ALB Ingress](https://github.com/aobao32/eks-101-workshop/blob/main/04-Deploy-demo-from-ECR.md)
+
+---
+
+以下内容1.22版本通过，但尚未更新到1.27版本
 
 [实验5、使用私有子网创建集群](https://github.com/aobao32/eks-101-workshop/blob/main/05-use-private-subnet-for-cluster.md)
 
