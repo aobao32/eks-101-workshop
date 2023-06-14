@@ -1,5 +1,7 @@
 # 实验五、使用私有子网创建EKS
 
+EKS 1.27版本 @2023-06 AWS Global区域测试通过
+
 ## 一、背景
 
 在EKS教程和实验手册中，使用eksctl工具创建集群，可以在几分钟内配置好一个EKS集群。但是，默认情况下，eksctl将会通过Cloudformation创建一个全新的VPC，默认使用192.168.0.0/16的子网掩码且Nodegroup位于Public Subnet。由此，Nodegroup和pod并未能落在现有VPC内，也未能使用Private Subnet。

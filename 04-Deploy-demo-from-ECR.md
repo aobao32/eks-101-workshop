@@ -1,4 +1,6 @@
-# 实验四、在ARM架构上构建应用并使用ALB Ingress
+# 实验四、在ARM架构上构建应用并使用ALB Ingress部署应用
+
+EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
 ## 一、关于多架构支持
 

@@ -10,7 +10,7 @@ EKS101动手实验：
 
 [实验3、配置CloudWatch Container Insight & 修改集群规格](https://github.com/aobao32/eks-101-workshop/blob/main/03-monitor-update-node-group.md)
 
-[实验4、在ARM架构上构建应用并使用ALB Ingress](https://github.com/aobao32/eks-101-workshop/blob/main/04-Deploy-demo-from-ECR.md)
+[实验4、在ARM架构上构建应用并使用ALB Ingress部署应用](https://github.com/aobao32/eks-101-workshop/blob/main/04-Deploy-demo-from-ECR.md)
 
 [实验5、使用私有子网创建集群](https://github.com/aobao32/eks-101-workshop/blob/main/05-use-private-subnet-for-cluster.md)
 

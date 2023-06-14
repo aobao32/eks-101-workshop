@@ -4,13 +4,6 @@ EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
 ## 一、启用CloudWatch Container Insight
 
-注意：2021年之前本功能尚未在中国区发布，后续支持本功能后逐渐更新：
-
-- 2021年10月在EKS 1.19上测试通过
-- 2022年3月在EKS 1.21上测试通过
-- 2022年4月在EKS 1.22上测试通过
-- 2023年3月在EKS 1.25上Global区域测试通过
-
 ### 1、部署配置文件
 
 注意这一段需要Linux/MacOS的bash/sh/zsh来执行，Fish和Windows下cmd无法执行。
