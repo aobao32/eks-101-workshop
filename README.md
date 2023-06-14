@@ -12,11 +12,11 @@ EKS101动手实验：
 
 [实验4、在ARM架构上构建应用并使用ALB Ingress](https://github.com/aobao32/eks-101-workshop/blob/main/04-Deploy-demo-from-ECR.md)
 
+[实验5、使用私有子网创建集群](https://github.com/aobao32/eks-101-workshop/blob/main/05-use-private-subnet-for-cluster.md)
+
 ---
 
 以下内容1.22版本通过，但尚未更新到1.27版本
-
-[实验5、使用私有子网创建集群](https://github.com/aobao32/eks-101-workshop/blob/main/05-use-private-subnet-for-cluster.md)
 
 [实验6、将IAM用户或角色授权为EKS集群管理员](https://github.com/aobao32/eks-101-workshop/blob/main/06-authorize-iam-role-and-user-for-eks.md)
 
