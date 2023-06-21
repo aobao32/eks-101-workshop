@@ -82,23 +82,21 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 #### （1）使用Internet-facing ELB，面向公网提供服务
 
-找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
+找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签（多个AZ需要同时添加）：
 
 - 标签名称：`kubernetes.io/role/elb`，值：`1`
-- 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
+
+如果之前标签已经存在，请跳过这一步。
 
 #### （2）使用Internal ELB，面向Private内部子网提供服务
 
-在创建私有ELB时候，可选的任意子网创建。如果您的VPC架构是基于Gateway Load Balancer的多VPC集中式流量检测架构，那么，您可以将内网的NLB部署在业务VPC的TGW ENI子网。这个子网是在业务VPC中，意味着与您的EKS是在相同的VPC。另外，可以将ELB所在位置与Node节点所在子网和Pod容器所在子网分开。
+在创建私有ELB时候，可选的任意子网创建，可以选择一个独立的私有子网部署ELB，也可以选择Node所在子网，也可以选择Pod所在子网。
 
-接下来找到最终选定部署位置的Private subnet，为其添加标签：
+本文以使用Node所在子网为例。在VPC界面上，找到Node使用的私有子网，为其添加标签（多个AZ需要同时添加）：
 
 - 标签名称：`kubernetes.io/role/internal-elb`，值：`1`
-- 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
 
-接下来请重复以上工作，每个AZ的子网都实施相同的配置，注意第一项标签值都是1。
-
-至此VPC配置完毕。
+接下来请重复以上工作，每个AZ的子网都实施相同的配置，注意第一项标签值都是1。至此VPC配置完毕。
 
 ## 三、配置EKS集群
 
@@ -112,8 +110,8 @@ kind: ClusterConfig
 
 metadata:
   name: eksworkshop
-  region: cn-northwest-1
-  version: "1.22"
+  region: ap-southeast-1
+  version: "1.27"
 
 vpc:
   clusterEndpoints:
@@ -121,9 +119,9 @@ vpc:
     privateAccess: true
   subnets:
     private:
-      cn-northwest-1a: { id: subnet-0af2e9fc3c3ab08b4 }
-      cn-northwest-1b: { id: subnet-0bb5aa110443670a1 }
-      cn-northwest-1c: { id: subnet-008bcabf73bea7e58 }
+      ap-southeast-1a: { id: subnet-04a7c6e7e1589c953 }
+      ap-southeast-1b: { id: subnet-031022a6aab9b9e70 }
+      ap-southeast-1c: { id: subnet-0eaf9054aa6daa68e }
 
 kubernetesNetworkConfig:
   serviceIPv4CIDR: 10.50.0.0/24
@@ -140,13 +138,12 @@ cloudWatch:
 eksctl create cluster -f eks-without-nodegroup.yaml
 ```
 
-### 2、调整aws-vpc-cni的参数（设置Pod所在子网）
+### 2、调整aws-vpc-cni的参数分别设置Node子网和Pod子网
 
 允许EKS自定义CNI网络插件的参数，执行如下命令：
 
 ``` 
-kubectl set env daemonset aws-node \
-    -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
+kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
 ```
 
 进入AWS控制台，从子网界面查看子网信息，确定Pod所在子网，获得可用区ID和子网ID。将三个Pod子网的信息分别复制下来。如下截图。
@@ -159,23 +156,23 @@ kubectl set env daemonset aws-node \
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
 metadata: 
-  name: cn-northwest-1c
+  name: ap-southeast-1a
 spec: 
-  subnet: subnet-045930b2b272266a0
+  subnet: subnet-0691037d70aac39da
 ---
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
 metadata: 
-  name: cn-northwest-1b
+  name: ap-southeast-1b
 spec: 
-  subnet: subnet-0e1b4e449662b8829
+  subnet: subnet-096d7481a653e3f47
 ---
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
 metadata: 
-  name: cn-northwest-1a
+  name: ap-southeast-1c
 spec: 
-  subnet: subnet-0a6e4899eb92cb204
+  subnet: subnet-0db55d7fb02249825
 ```
 
 将以上配置文件保存为`eniconfig.yaml`文件。然后执行如下命令：
@@ -198,9 +195,17 @@ kubectl describe daemonset aws-node --namespace kube-system
 
 通过输出结果即可确认配置生效。
 
-### 3、创建新的Nodegroup节点组
+### 3、使用Node子网创建新的Nodegroup节点组
 
-注意：本实验采用的是创建全新集群，并修改网络配置，然后创建节点组。如果是先有集群，修改网络配置后也要重新创建Node才可以生效。
+注意：本实验采用的是创建全新集群，并修改网络配置，然后创建节点组。如果是现有集群，修改网络配置后也要重新创建Node才可以生效。
+
+如果上述配置文件启动的Nodegroup是Graviton处理器的ARM机型，则需要额外执行如下命令确认插件为最新：
+
+```
+eksctl utils update-coredns --cluster eksworkshop --approve
+eksctl utils update-kube-proxy --cluster eksworkshop --approve
+eksctl utils update-aws-node --cluster eksworkshop --approve
+```
 
 构建如下内容，保存为`newnodegroup.yaml`文件。
 
@@ -210,22 +215,26 @@ kind: ClusterConfig
 
 metadata:
   name: eksworkshop
-  region: cn-northwest-1
-  version: "1.22"
+  region: ap-southeast-1
+  version: "1.27"
 
 managedNodeGroups:
-  - name: ng1
+  - name: newng1
     labels:
-      Name: ng1
-    instanceType: m5.2xlarge
+      Name: newng1
+    instanceType: t4g.xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
     privateNetworking: true
+    subnets:
+      - subnet-04a7c6e7e1589c953
+      - subnet-031022a6aab9b9e70
+      - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
     tags:
-      nodegroup-name: ng1
+      nodegroup-name: newng1
     iam:
       withAddonPolicies:
         imageBuilder: true
@@ -248,29 +257,15 @@ eksctl create nodegroup -f newnodegroup.yaml
 
 在EKS 1.21以上版本，由于API的变化，创建NLB和ALB Ingress都被整合到了Load Balancer Controller中。所以如果不部署Load Balancer Controller，NLB也是无法创建成功的。在部署Load Balancer Controller完成后，可以根据需要只部署NLB或者只部署ALB Ingress，或者同时部署两种负载均衡。
 
-分别执行以下命令，完成AWS Load Balancer Controller的部署。
+有关详细部署Load Balancer Controllerd的说明请参考[前文的实验](https://github.com/aobao32/eks-101-workshop/blob/main/02-deploy-alb-ingress.md)。
 
-```
-eksctl utils associate-iam-oidc-provider --region cn-northwest-1 --cluster eksworkshop --approve
-```
+## 五、测试多种ELB部署方式
 
-```
-eksctl create iamserviceaccount --cluster=eksworkshop --namespace=kube-system --name=aws-load-balancer-controller --attach-policy-arn=arn:aws-cn:iam::420029960748:policy/AWSLoadBalancerControllerIAMPolicy --override-existing-serviceaccounts --approve
-```
+### 1、在公有子网部署ALB Ingress
 
-```
-kubectl apply --validate=false -f https://myworkshop.bitipcman.com/eks101/cert-manager_v1.8.1.yaml
-```
 
-```
-kubectl apply -f https://myworkshop.bitipcman.com/eks101/crds.yaml
-```
 
-```
-kubectl apply -f https://myworkshop.bitipcman.com/eks101/v2_4_1_full-zhy.yaml
-```
-
-## 五、在公有子网创建NLB并使用NodePort方式暴露应用
+### 2、在公有子网创建NLB并使用NodePort方式暴露应用
 
 如果需求方式是使用Node节点的高位端口暴露应用，那么可不使用ALB Ingress，只是使用简单的NodePort方式暴露应用。前文在创建子网部分已经描述了如何在Subnet上打上EKS的tag，由此EKS会自动找到对应子网。
 
@@ -334,7 +329,7 @@ kubectl get service service-nginx -o wide
 
 ![](https://myworkshop.bitipcman.com/eks101/ip/pod10.png)
 
-## 六、在私有子网部署内网的NLB
+### 3、在私有子网部署内网的NLB
 
 在某些模式下，我们只需要对VPC内网或者其他VPC、专线等另一侧暴露内网NLB。因此这时候就不需要构建基于Internet-facing的公网NLB了。这种场景下，构建如下一段配置：
 

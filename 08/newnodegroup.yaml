@@ -3,22 +3,26 @@ kind: ClusterConfig
 
 metadata:
   name: eksworkshop
-  region: cn-northwest-1
-  version: "1.22"
+  region: ap-southeast-1
+  version: "1.27"
 
 managedNodeGroups:
-  - name: ng1
+  - name: newng1
     labels:
-      Name: ng1
-    instanceType: t3.2xlarge
+      Name: newng1
+    instanceType: t4g.xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
     privateNetworking: true
+    subnets:
+      - subnet-04a7c6e7e1589c953
+      - subnet-031022a6aab9b9e70
+      - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
     tags:
-      nodegroup-name: ng1
+      nodegroup-name: newng1
     iam:
       withAddonPolicies:
         imageBuilder: true

@@ -1,8 +1,15 @@
 # 实验六、将IAM用户或角色授权为EKS集群管理员
 
-使用EKS服务过程中，经常出现创建EKS集群和管理EKS集群的不是一个人。由此会导致在AWS控制台上显示EKS服务不正常，无法获取有关配置。解决办法如下。
+使用EKS服务过程中，经常出现创建EKS集群和管理EKS集群的不是一个人。由此会导致在AWS控制台上显示EKS服务不正常，无法获取有关配置。在AWS控制台上访问EKS服务时候，会提示错误信息如下：
+
+```
+Your current IAM principal doesn’t have access to Kubernetes objects on this cluster.
+This might be due to the current IAM principal not having an access entry with permissions to access the cluster.
+```
 
 通俗点说：A使用eksctl命令行工具创建了集群，B在AWS控制台上看不到，现在需要A给B授权。B可能是一个IAM User用户，也可能是一个IAM Role角色（虚拟的）。根据B是用户还是角色，后续操作二选一。
+
+注意：以下步骤需要在一个已经配置好IAM Service Account/Load Balancer Controller之后的可正常工作的EKS集群上执行。如果您的EKS集群只创建了Control Plane，还没有继续配置IAM Service Account/Load Balancer Controller，那么现在来执行IAM身份配置将会报错。
 
 ## 一、查看当前授权（前文提到的A身份）
 
@@ -186,6 +193,10 @@ aws eks update-kubeconfig --region region-code --name cluster-name
 
 ## 四、参考文档
 
-[在 Amazon EKS 中创建集群之后，如何提供对其他 IAM 用户和角色的访问权限？](https://aws.amazon.com/cn/premiumsupport/knowledge-center/amazon-eks-cluster-access/)
+在 Amazon EKS 中创建集群之后，如何提供对其他 IAM 用户和角色的访问权限
 
-[为 Amazon EKS 创建 kubeconfig](https://docs.amazonaws.cn/eks/latest/userguide/create-kubeconfig.html)
+[https://aws.amazon.com/cn/premiumsupport/knowledge-center/amazon-eks-cluster-access/]()
+
+Enabling IAM principal access to your cluster
+
+[https://docs.aws.amazon.com/eks/latest/userguide/add-user-role.html]()

@@ -3,8 +3,8 @@ kind: ClusterConfig
 
 metadata:
   name: eksworkshop
-  region: cn-northwest-1
-  version: "1.22"
+  region: ap-southeast-1
+  version: "1.27"
 
 vpc:
   clusterEndpoints:
@@ -12,9 +12,9 @@ vpc:
     privateAccess: true
   subnets:
     private:
-      cn-northwest-1a: { id: subnet-0af2e9fc3c3ab08b4 }
-      cn-northwest-1b: { id: subnet-0bb5aa110443670a1 }
-      cn-northwest-1c: { id: subnet-008bcabf73bea7e58 }
+      ap-southeast-1a: { id: subnet-04a7c6e7e1589c953 }
+      ap-southeast-1b: { id: subnet-031022a6aab9b9e70 }
+      ap-southeast-1c: { id: subnet-0eaf9054aa6daa68e }
 
 kubernetesNetworkConfig:
   serviceIPv4CIDR: 10.50.0.0/24

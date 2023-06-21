@@ -74,17 +74,28 @@ eksctl version
 
 ### 3、MacOS下安装eksctl和kubectl工具
 
-先安装homebrew包管理工具。
+先安装homebrew包管理工具。这一步需要从Github下载，因此最好能使用国外VPN确保安装成功。
 
 ```
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+```
+
+然后使用brew工具即可安装eksctl。这里需要安装最新版本的eksctl，旧版本的不能创建最新EKS集群。
+
+```
 brew upgrade eksctl && { brew link --overwrite eksctl; } || { brew tap weaveworks/tap; brew install weaveworks/tap/eksctl; }
 eksctl version
+```
+
+最后下载kubectl工具，这里提供的是M1系列处理器的MacBook Pro使用的ARM版本的kubectl下载：
+
+```
 curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/darwin/amd64/kubectl
 kubectl version --short --client
 chmod 755 kubectl
-eksctl version
 ```
+
+客户端准备完毕。
 
 ## 三、创建EKS集群的配置文件（两种场景二选一）
 
@@ -120,7 +131,7 @@ managedNodeGroups:
   - name: managed-ng
     labels:
       Name: managed-ng
-    instanceType: t3.xlarge
+    instanceType: t3.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
@@ -164,12 +175,10 @@ eksctl create cluster -f newvpc.yaml
 找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
 
 - 标签名称：`kubernetes.io/role/elb`，值：`1`
-- 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
 
 接下来进入Private subnet，为其添加标签：
 
 - 标签名称：`kubernetes.io/role/internal-elb`，值：`1`
-- 标签名称：`kubernetes.io/cluster/eksworkshop`，值：`shared`
 
 接下来请重复以上工作，三个AZ的子网都实施相同的配置，注意第一项标签值都是1。
 
@@ -194,9 +203,9 @@ vpc:
     privateAccess: true
   subnets:
     private:
-      ap-southeast-1a: { id: subnet-0af2e9fc3c3ab08b4 }
-      ap-southeast-1b: { id: subnet-0bb5aa110443670a1 }
-      ap-southeast-1c: { id: subnet-008bcabf73bea7e58 }
+      ap-southeast-1a: { id: subnet-04a7c6e7e1589c953 }
+      ap-southeast-1b: { id: subnet-031022a6aab9b9e70 }
+      ap-southeast-1c: { id: subnet-0eaf9054aa6daa68e }
 
 kubernetesNetworkConfig:
   serviceIPv4CIDR: 10.50.0.0/24
@@ -205,11 +214,15 @@ managedNodeGroups:
   - name: managed-ng
     labels:
       Name: managed-ng
-    instanceType: m5.2xlarge
+    instanceType: t3.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
     privateNetworking: true
+    subnets:
+      - subnet-04a7c6e7e1589c953
+      - subnet-031022a6aab9b9e70
+      - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
     tags:

@@ -17,19 +17,19 @@ eksctl utils associate-iam-oidc-provider --region ap-southeast-1 --cluster ekswo
 下载已经预先配置好的IAM策略到本地，保持iam-policy.json的文件名。另外请注意，本文使用的ALB ingress是2.x，因此IAM policy与之前1.x的版本不通用，请注意部署时候才用正确的版本。
 
 ```
-curl -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.7/docs/install/iam_policy.json
+curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.5.1/docs/install/iam_policy.json
 ```
 
 如果实验环境位于中国区，从Github的文件服务器下载文件失败，那么可以从如下实验用网址下载：
 
 ```
-curl -O https://myworkshop.bitipcman.com/eks101/iam_policy.json
+curl -O https://myworkshop.bitipcman.com/eks101/02/iam_policy.json
 ```
 
 另外请注意：刚下载到的iam_policy.json是匹配AWS Global Region的，如果在中国区域使用，可以下载修改过arn标签的如下文件：
 
 ```
-curl -O https://myworkshop.bitipcman.com/eks101/iam_policy-cn.json
+curl -O https://myworkshop.bitipcman.com/eks101/02/iam_policy-cn.json
 ```
 
 创建IAM Policy，执行如下命令。注意上一步下载的文件如果是中国区的版本，注意文件名的区别。
@@ -46,15 +46,15 @@ aws iam create-policy \
 {
     "Policy": {
         "PolicyName": "AWSLoadBalancerControllerIAMPolicy",
-        "PolicyId": "ANPAVSPQIF7MX2RY22JRH",
-        "Arn": "arn:aws:iam::383292813273:policy/AWSLoadBalancerControllerIAMPolicy",
+        "PolicyId": "ANPAR57Y4KKLBDIRFAHXS",
+        "Arn": "arn:aws:iam::133129065110:policy/AWSLoadBalancerControllerIAMPolicy",
         "Path": "/",
         "DefaultVersionId": "v1",
         "AttachmentCount": 0,
         "PermissionsBoundaryUsageCount": 0,
         "IsAttachable": true,
-        "CreateDate": "2023-06-13T00:53:37+00:00",
-        "UpdateDate": "2023-06-13T00:53:37+00:00"
+        "CreateDate": "2023-06-21T05:36:41+00:00",
+        "UpdateDate": "2023-06-21T05:36:41+00:00"
     }
 }
 ```
@@ -71,7 +71,7 @@ eksctl create iamserviceaccount \
   --namespace=kube-system \
   --name=aws-load-balancer-controller \
   --role-name AmazonEKSLoadBalancerControllerRole \
-  --attach-policy-arn=arn:aws:iam::383292813273:policy/AWSLoadBalancerControllerIAMPolicy \
+  --attach-policy-arn=arn:aws:iam::133129065110:policy/AWSLoadBalancerControllerIAMPolicy \
   --approve
 ```
 
@@ -159,46 +159,46 @@ aws-load-balancer-controller   2/2     2            2           42s
 
 接下来请重复以上工作，三个AZ的子网都实施相同的配置，注意第一项标签值都是数字1。
 
-## 二、部署使用ALB Ingress的2048应用
+## 二、部署使用ALB Ingress的测试应用
 
 ### 1、部署应用
 
-构建2048应用的配置文件。
+构建应用配置文件。
 
 ```
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: game-2048
+  name: mydemo
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: game-2048
-  name: deployment-2048
+  namespace: mydemo
+  name: nginx
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: app-2048
+      app.kubernetes.io/name: nginx
   replicas: 3
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: app-2048
+        app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/l6m2t8p7/docker-2048:latest
+      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
         imagePullPolicy: Always
-        name: app-2048
+        name: nginx
         ports:
         - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: game-2048
-  name: service-2048
+  namespace: mydemo
+  name: nginx
 spec:
   ports:
     - port: 80
@@ -206,49 +206,46 @@ spec:
       protocol: TCP
   type: NodePort
   selector:
-    app.kubernetes.io/name: app-2048
+    app.kubernetes.io/name: nginx
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  namespace: game-2048
-  name: ingress-2048
+  namespace: mydemo
+  name: ingress-for-nginx-app
+  labels:
+    app: ingress-for-nginx-app
   annotations:
-    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
 spec:
+  ingressClassName: alb
   rules:
-    - http:
-        paths:
-        - path: /
-          pathType: Prefix
-          backend:
-            service:
-              name: service-2048
-              port:
-                number: 80
-```
-
-将上述配置文件保存为`2048.yaml`。然后执行如下命令启动：
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx
+            port:
+              number: 80
 
 ```
-kubectl apply -f 2048.yaml
-```
 
-如果不希望编辑、保存配置文件，希望直接从网络启动，那么可执行如下命令直接启动：
+将上述配置文件保存为`nginx-app.yaml`。然后执行如下命令启动：
 
 ```
-kubectl apply -f https://myworkshop.bitipcman.com/eks101/2048_full_latest.yaml
+kubectl apply -f nginx-app.yaml
 ```
 
 返回结果如下表示已经创建：
 
 ```
-namespace/game-2048 created
-deployment.apps/deployment-2048 created
-service/service-2048 created
-ingress.networking.k8s.io/ingress-2048 created
+namespace/mydemo created
+deployment.apps/nginx created
+service/nginx created
+ingress.networking.k8s.io/ingress-for-nginx-app created
 ```
 
 ### 2、查看部署效果
@@ -256,42 +253,43 @@ ingress.networking.k8s.io/ingress-2048 created
 在创建并等待几分钟后，运行如下命令查看部署：
 
 ```
-kubectl describe ingress -n game-2048
+kubectl describe ingress -n mydemo
 ```
 
 返回结果如下：
 
 ```
-Name:             ingress-2048
-Labels:           <none>
-Namespace:        game-2048
-Address:          k8s-game2048-ingress2-2810c0c2ad-1325099403.ap-southeast-1.elb.amazonaws.com
+Name:             ingress-for-nginx-app
+Labels:           app=ingress-for-nginx-app
+Namespace:        mydemo
+Address:          k8s-mydemo-ingressf-ecff36a9c4-1875138383.ap-southeast-1.elb.amazonaws.com
 Ingress Class:    alb
 Default backend:  <default>
 Rules:
   Host        Path  Backends
   ----        ----  --------
   *           
-              /   service-2048:80 (192.168.47.150:80,192.168.6.169:80,192.168.82.98:80)
+              /   nginx:80 (172.31.51.58:80,172.31.71.8:80,172.31.81.58:80)
 Annotations:  alb.ingress.kubernetes.io/scheme: internet-facing
               alb.ingress.kubernetes.io/target-type: ip
 Events:
   Type    Reason                  Age   From     Message
   ----    ------                  ----  ----     -------
-  Normal  SuccessfullyReconciled  26s   ingress  Successfully reconciled
+  Normal  SuccessfullyReconciled  75s   ingress  Successfully reconciled
 ```
 
 此外也可以只查看入口地址，执行如下命令可查看。命令后边没有加 -n 的参数表示是在default namespace，如果是在其他name space下需要使用 -n namespace名字 的方式声明要查询的命名空间。
 
 ```
-kubectl get ingress -n game-2048
+kubectl get ingress -n mydemo
 ```
 
 返回结果：
 
 ```
-NAME           CLASS   HOSTS   ADDRESS                                                                        PORTS   AGE
-ingress-2048   alb     *       k8s-game2048-ingress2-2810c0c2ad-1325099403.ap-southeast-1.elb.amazonaws.com   80      5m43s
+NAME                    CLASS   HOSTS   ADDRESS                                                                      PORTS   AGE
+ingress-for-nginx-app   alb     *       k8s-mydemo-ingressf-ecff36a9c4-1875138383.ap-southeast-1.elb.amazonaws.com   80      99s
+
 ```
 
 使用浏览器访问ALB的地址，即可看到应用部署成功。
@@ -303,7 +301,7 @@ ingress-2048   alb     *       k8s-game2048-ingress2-2810c0c2ad-1325099403.ap-so
 执行如下命令：
 
 ```
-kubectl delete -f https://myworkshop.bitipcman.com/eks101/2048_full_latest.yaml
+kubectl delete -f nginx-app.yaml
 ```
 
 至此实验完成。
