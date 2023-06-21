@@ -1,4 +1,7 @@
-# 为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段
+# 实验八、为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段
+
+EKS 1.27版本 @2023-06 AWS Global区域测试通过
+
 
 ## 一、背景
 
