@@ -2,8 +2,7 @@
 
 EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
-
-## 一、背景
+## 一、背景及网络场景选择
 
 ### 1、关于EKS的默认CNI
 
@@ -41,27 +40,27 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 下面开始描述配置过程。注：文档描述的IP地址段与上边的架构图地址段有出入，以实际配置为准。
 
-## 二、为VPC添加第二IP地址段
+## 二、为现有VPC扩展地址段
 
-### 1、为VPC添加IP地址
+### 1、为VPC添加新的IP地址
 
 首先查看当前VPC的IP范围，并查看AWS[官方文档](https://docs.aws.amazon.com/zh_cn/vpc/latest/userguide/configure-your-vpc.html#add-cidr-block-restrictions)描述的可扩充IP范围的限制。
 
 首先进入VPC界面，选择要添加IP地址的VPC，点击右上角的操作，选择修改CIDR。如下截图。
 
-![](https://myworkshop.bitipcman.com/eks101/ip/pod01.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod01.png)
 
 进入添加IP地址段界面，添加上第二个地址段，例如`100.64.0.0/16`，然后点击右侧的分配按钮，再点击下方的保存。如下截图。
 
-![](https://myworkshop.bitipcman.com/eks101/ip/pod02.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod02.png)
 
-### 2、为第二IP地址段创建子网
+### 2、为新的IP地址段创建新的子网
 
 进入创建子网界面，选择对应的VPC，创建新的子网，并使用刚才新添加的IP地址段。例如本例中`100.64.0.0/16`被添加到VPC中，那么子网可采用`100.64.1.0/24`、`100.64.2.0/24`、`100.64.3.0/24`分别对应三个AZ。
 
 如此分别为3个AZ都创建好对应的Pod使用的子网。如下截图。
 
-![](https://myworkshop.bitipcman.com/eks101/ip/pod05.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod05.png)
 
 操作完成。
 
@@ -69,15 +68,15 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 新创建好的子网会绑定到VPC默认路由表，因此还需要将新创建的子网绑定到和Node节点同一个路由表。进入路由表界面，查看Node所在的private subnet的路由表，可以看到当前只关联了三个Node子网。点击编辑按钮。如下截图。
 
-![](https://myworkshop.bitipcman.com/eks101/ip/pod06.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod06.png)
 
 将新创建的Pod子网关联到Node所在的Private子网的路由表上。如下截图。
 
-![](https://myworkshop.bitipcman.com/eks101/ip/pod07.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod07.png)
 
 添加子网完成后，确认下Node所在的子网和Pod所在的子网，所对应的路由表的下一跳是NAT Gateway。这是因为这两个子网都是私有子网，没有Elastic IP，因此默认网关下一跳都必须是NAT Gateway。如下截图。
 
-![](https://myworkshop.bitipcman.com/eks101/ip/pod08.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod08.png)
 
 备注：如果您使用了Gateway Load Balancer做的集中网络流量检测方案，那么这里的默认网关下一跳应该是TGW。如果您没有使用Gateway Load Balancer，默认下一跳都是NAT Gateway。
 
@@ -101,9 +100,9 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 接下来请重复以上工作，每个AZ的子网都实施相同的配置，注意第一项标签值都是1。至此VPC配置完毕。
 
-## 三、配置EKS集群
+## 三、配置并配置EKS集群
 
-### 1、创建一个不包含Node节点的空白EKS集群（设置Node所在子网）
+### 1、创建一个默认EKS集群
 
 首先构建配置文件，替换其中的子网ID为Node所在的子网ID。
 
@@ -112,7 +111,7 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: eksworkshop
+  name: eksworkshop2
   region: ap-southeast-1
   version: "1.27"
 
@@ -129,19 +128,59 @@ vpc:
 kubernetesNetworkConfig:
   serviceIPv4CIDR: 10.50.0.0/24
 
+managedNodeGroups:
+  - name: managed-ng
+    labels:
+      Name: managed-ng
+    instanceType: t3.2xlarge
+    minSize: 3
+    desiredCapacity: 3
+    maxSize: 6
+    privateNetworking: true
+    subnets:
+      - subnet-04a7c6e7e1589c953
+      - subnet-031022a6aab9b9e70
+      - subnet-0eaf9054aa6daa68e
+    volumeType: gp3
+    volumeSize: 100
+    tags:
+      nodegroup-name: managed-ng
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        certManager: true
+        efs: true
+        ebs: true
+        albIngress: true
+        xRay: true
+        cloudWatch: true
+
 cloudWatch:
   clusterLogging:
     enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
     logRetentionInDays: 30
 ```
 
-将以上内容保存为`eks-without-nodegroup.yaml`，然后运行如下命令启动集群。
+将以上内容保存为`eks-in-private-subnet.yaml`，然后运行如下命令启动集群。
 
 ```
-eksctl create cluster -f eks-without-nodegroup.yaml
+eksctl create cluster -f eks-in-private-subnet.yaml
 ```
 
-### 2、调整aws-vpc-cni的参数分别设置Node子网和Pod子网
+### 2、部署AWS Load Balancer Controller
+
+有关详细部署Load Balancer Controllerd的说明请参考[前文的实验](https://github.com/aobao32/eks-101-workshop/blob/main/02-deploy-alb-ingress.md)。
+
+### 3、部署CloudWatch Container Insight
+
+部署CloudWatch Container Insight的方法与此前方法相同。可参考[这篇](https://github.com/aobao32/eks-101-workshop/blob/main/03-monitor-update-node-group.md)文档。
+
+## 四、修改EKS的网络参数为Pod指定单独子网
+
+注意：在修改本参数之后，必须重新创建新的Nodegroup才可以生效
+
+### 1、调整aws-vpc-cni的参数分别设置Node子网和Pod子网
 
 允许EKS自定义CNI网络插件的参数，执行如下命令：
 
@@ -151,7 +190,7 @@ kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK
 
 进入AWS控制台，从子网界面查看子网信息，确定Pod所在子网，获得可用区ID和子网ID。将三个Pod子网的信息分别复制下来。如下截图。
 
-![](https://myworkshop.bitipcman.com/eks101/ip/pod09.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod09.png)
 
 用文本编辑器编辑如下文件，替换其中的可用区ID和子网ID为Pod所在子网的ID，然后保存为`eniconfig.yaml`文件。
 
@@ -198,7 +237,7 @@ kubectl describe daemonset aws-node --namespace kube-system
 
 通过输出结果即可确认配置生效。
 
-### 3、使用Node子网创建新的Nodegroup节点组
+### 2、使用Node子网创建新的Nodegroup节点组
 
 注意：本实验采用的是创建全新集群，并修改网络配置，然后创建节点组。如果是现有集群，修改网络配置后也要重新创建Node才可以生效。
 
@@ -255,12 +294,15 @@ managedNodeGroups:
 ```
 eksctl create nodegroup -f newnodegroup.yaml
 ```
+### 3、把旧的Nodegroup删除
 
-## 四、部署AWS Load Balancer Controller
+执行如下命令：
 
-在EKS 1.21以上版本，由于API的变化，创建NLB和ALB Ingress都被整合到了Load Balancer Controller中。所以如果不部署Load Balancer Controller，NLB也是无法创建成功的。在部署Load Balancer Controller完成后，可以根据需要只部署NLB或者只部署ALB Ingress，或者同时部署两种负载均衡。
+```
+eksctl delete nodegroup --name newng1 --cluster eksworkshop 
+```
 
-有关详细部署Load Balancer Controllerd的说明请参考[前文的实验](https://github.com/aobao32/eks-101-workshop/blob/main/02-deploy-alb-ingress.md)。
+删除完毕后，即可在新的节点上用新的网络配置启动应用，这时候应用Pod网段将会与Node网段独立开。
 
 ## 五、测试多种ELB部署方式
 
@@ -368,12 +410,6 @@ ingress-for-nginx-app   alb     *       k8s-publical-ingressf-e3bf1572ab-1992535
 ```
 
 使用浏览器访问ALB的地址，即可看到应用部署成功。
-
-#### （3）确认Pod运行网段
-
-启动完成后，查看所有pod的IP，可发现除默认负责网络转发的kube-proxy和aws-node（VPC CNI）还运行在Node所在的Subnet上之外，新创建的应用都会运行在新的子网和IP地址段上。如下截图。
-
-![](https://myworkshop.bitipcman.com/eks101/ip/pod10.png)
 
 ### 2、在公有子网创建NLB并使用NodePort方式暴露应用
 
@@ -540,9 +576,11 @@ service-nginx   LoadBalancer   10.50.0.34   k8s-privaten-servicen-3fe387f3ed-3b1
 
 这个地址将会解析为内网IP。
 
-## 七、部署CloudWatch Container Insight
+### 4、确认Pod运行在独立网段
 
-部署CloudWatch Container Insight的方法与此前方法相同。可参考[这篇](https://github.com/aobao32/eks-101-workshop/blob/main/03-monitor-update-node-group.md)文档。
+启动完成后，查看所有pod的IP，可发现除默认负责网络转发的kube-proxy和aws-node（VPC CNI）还运行在Node所在的Subnet上之外，新创建的应用都会运行在新的子网和IP地址段上。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod11.png)
 
 ## 八、参考文档
 

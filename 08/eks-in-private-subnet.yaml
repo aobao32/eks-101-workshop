@@ -1,0 +1,54 @@
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop2
+  region: ap-southeast-1
+  version: "1.27"
+
+vpc:
+  clusterEndpoints:
+    publicAccess:  true
+    privateAccess: true
+  subnets:
+    private:
+      ap-southeast-1a: { id: subnet-04a7c6e7e1589c953 }
+      ap-southeast-1b: { id: subnet-031022a6aab9b9e70 }
+      ap-southeast-1c: { id: subnet-0eaf9054aa6daa68e }
+
+kubernetesNetworkConfig:
+  serviceIPv4CIDR: 10.50.0.0/24
+
+managedNodeGroups:
+  - name: managed-ng
+    labels:
+      Name: managed-ng
+    instanceType: t3.2xlarge
+    minSize: 3
+    desiredCapacity: 3
+    maxSize: 6
+    privateNetworking: true
+    subnets:
+      - subnet-04a7c6e7e1589c953
+      - subnet-031022a6aab9b9e70
+      - subnet-0eaf9054aa6daa68e
+    volumeType: gp3
+    volumeSize: 100
+    tags:
+      nodegroup-name: managed-ng
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        certManager: true
+        efs: true
+        ebs: true
+        albIngress: true
+        xRay: true
+        cloudWatch: true
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+    logRetentionInDays: 30
