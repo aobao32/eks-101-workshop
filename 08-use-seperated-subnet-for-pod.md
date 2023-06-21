@@ -263,49 +263,165 @@ eksctl create nodegroup -f newnodegroup.yaml
 
 ### 1、在公有子网部署ALB Ingress
 
+#### （1）部署应用
 
-
-### 2、在公有子网创建NLB并使用NodePort方式暴露应用
-
-如果需求方式是使用Node节点的高位端口暴露应用，那么可不使用ALB Ingress，只是使用简单的NodePort方式暴露应用。前文在创建子网部分已经描述了如何在Subnet上打上EKS的tag，由此EKS会自动找到对应子网。
-
-构建如下测试应用（Nginx）：
+构建应用配置文件。
 
 ```
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: public-alb
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deployment
-  labels:
-    app: nginx
+  namespace: public-alb
+  name: nginx
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      app.kubernetes.io/name: nginx
+  replicas: 3
   template:
     metadata:
       labels:
-        app: nginx
+        app.kubernetes.io/name: nginx
     spec:
       containers:
-      - name: nginx
-        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
+      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        imagePullPolicy: Always
+        name: nginx
         ports:
         - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: "service-nginx"
+  namespace: public-alb
+  name: nginx
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: nginx
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: public-alb
+  name: ingress-for-nginx-app
+  labels:
+    app: ingress-for-nginx-app
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: external
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx
+            port:
+              number: 80
+```
+
+将上述配置文件保存为`public-alb.yaml`。然后执行如下命令启动：
+
+```
+kubectl apply -f public-alb.yaml
+```
+
+返回结果：
+
+```
+namespace/public-alb created
+deployment.apps/nginx created
+service/nginx created
+ingress.networking.k8s.io/ingress-for-nginx-app created
+```
+
+#### （2）查看ALB Ingress入口地址并测试
+
+执行如下命令可查看：
+
+```
+kubectl get ingress -n public-alb
+```
+
+返回结果：
+
+```
+NAME                    CLASS   HOSTS   ADDRESS                                                                        PORTS   AGE
+ingress-for-nginx-app   alb     *       k8s-publical-ingressf-e3bf1572ab-1992535472.ap-southeast-1.elb.amazonaws.com   80      14s
+```
+
+使用浏览器访问ALB的地址，即可看到应用部署成功。
+
+#### （3）确认Pod运行网段
+
+启动完成后，查看所有pod的IP，可发现除默认负责网络转发的kube-proxy和aws-node（VPC CNI）还运行在Node所在的Subnet上之外，新创建的应用都会运行在新的子网和IP地址段上。如下截图。
+
+![](https://myworkshop.bitipcman.com/eks101/ip/pod10.png)
+
+### 2、在公有子网创建NLB并使用NodePort方式暴露应用
+
+如果需求方式是使用Node节点的高位端口暴露应用，那么可不使用ALB Ingress，只是使用简单的NodePort方式暴露应用。前文在创建子网部分已经描述了如何在Subnet上打上EKS的tag，由此EKS会自动找到对应子网。
+
+####  （1）部署应用
+
+构建如下测试应用：
+
+```
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: public-nlb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: public-nlb
+  name: nginx-deployment
 spec:
   selector:
-    app: nginx
+    matchLabels:
+      app.kubernetes.io/name: nginx
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx
+    spec:
+      containers:
+      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        imagePullPolicy: Always
+        name: nginx
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: public-nlb
+  name: "service-nginx"
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+spec:
+  loadBalancerClass: service.k8s.aws/nlb
+  selector:
+    app.kubernetes.io/name: nginx
   type: LoadBalancer
   ports:
   - protocol: TCP
@@ -313,21 +429,32 @@ spec:
     targetPort: 80
 ```
 
-将以上配置文件保存为`nginx-nlb.yaml`，然后执行如下命令启动：
+将以上配置文件保存为`public-nlb.yaml`，然后执行如下命令启动：
 
 ```
-kubectl apply -f nginx-nlb.yaml
+kubectl apply -f public-nlb.yaml
 ```
+
+返回结果：
+
+```
+namespace/public-nlb created
+deployment.apps/nginx-deployment created
+service/service-nginx created
+```
+
+#### （2）查看Pvivate NLB入口地址并测试
 
 查看NLB入口。
 
 ```
-kubectl get service service-nginx -o wide 
+kubectl get service service-nginx -n public-nlb -o wide 
 ``` 
 
-启动完成后，查看所有pod的IP，可发现除默认负责网络转发的kube-proxy和aws-node（VPC CNI）还运行在Node所在的Subnet上之外，新创建的应用都会运行在新的子网和IP地址段上。如下截图。
-
-![](https://myworkshop.bitipcman.com/eks101/ip/pod10.png)
+```
+NAME            TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE    SELECTOR
+service-nginx   LoadBalancer   10.50.0.224   k8s-publicnl-servicen-112bd18a54-a628f86f0217bffa.elb.ap-southeast-1.amazonaws.com   80:31011/TCP   118s   app.kubernetes.io/name=nginx
+```
 
 ### 3、在私有子网部署内网的NLB
 
@@ -335,46 +462,80 @@ kubectl get service service-nginx -o wide
 
 ```
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: private-nlb
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: private-nlb
   name: nginx-deployment
-  labels:
-    app: nginx
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      app.kubernetes.io/name: nginx
+  replicas: 3
   template:
     metadata:
       labels:
-        app: nginx
+        app.kubernetes.io/name: nginx
     spec:
       containers:
-      - name: nginx
-        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
+      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        imagePullPolicy: Always
+        name: nginx
         ports:
         - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: private-nlb
   name: "service-nginx"
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: nlb-ip
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internal
-        service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
 spec:
+  loadBalancerClass: service.k8s.aws/nlb
   selector:
-    app: nginx
+    app.kubernetes.io/name: nginx
   type: LoadBalancer
   ports:
   - protocol: TCP
     port: 80
     targetPort: 80
 ```
+
+将以上配置文件保存为`private-nlb.yaml`，然后执行如下命令启动：
+
+```
+kubectl apply -f private-nlb.yaml
+```
+
+返回结果：
+
+```
+namespace/private-nlb created
+deployment.apps/nginx-deployment created
+service/service-nginx created
+```
+
+#### （2）查看Private NLB入口地址并测试
+
+查看NLB入口。
+
+```
+kubectl get service service-nginx -n private-nlb -o wide 
+``` 
+
+```
+NAME            TYPE           CLUSTER-IP   EXTERNAL-IP                                                                          PORT(S)        AGE    SELECTOR
+service-nginx   LoadBalancer   10.50.0.34   k8s-privaten-servicen-3fe387f3ed-3b1e7aef54125420.elb.ap-southeast-1.amazonaws.com   80:32631/TCP   118s   app.kubernetes.io/name=nginx
+```
+
+这个地址将会解析为内网IP。
 
 ## 七、部署CloudWatch Container Insight
 
@@ -384,12 +545,12 @@ spec:
 
 Github上的AWS VPC CNI代码和文档：
 
-[https://github.com/aws/amazon-vpc-cni-k8s](https://github.com/aws/amazon-vpc-cni-k8s)
+[https://github.com/aws/amazon-vpc-cni-k8s]()
 
 使用CNI自定义网络：
 
-[https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/cni-custom-network.html](https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/cni-custom-network.html)
+[https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/cni-custom-network.html]()
 
 EKS的NLB参数说明：
 
-[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#lb-scheme](https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#lb-scheme)
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/service/nlb/]()

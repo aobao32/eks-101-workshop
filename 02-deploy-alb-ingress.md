@@ -289,7 +289,6 @@ kubectl get ingress -n mydemo
 ```
 NAME                    CLASS   HOSTS   ADDRESS                                                                      PORTS   AGE
 ingress-for-nginx-app   alb     *       k8s-mydemo-ingressf-ecff36a9c4-1875138383.ap-southeast-1.elb.amazonaws.com   80      99s
-
 ```
 
 使用浏览器访问ALB的地址，即可看到应用部署成功。

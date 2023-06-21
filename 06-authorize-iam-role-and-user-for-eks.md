@@ -34,8 +34,13 @@ mapRoles:
 - groups:
   - system:bootstrappers
   - system:nodes
-  rolearn: arn:aws-cn:iam::420029960748:role/eksctl-eksworkshopbj-nodegroup-no-NodeInstanceRole-BGKUROWI9QA5
+  rolearn: arn:aws:iam::133129065110:role/eksctl-eksworkshop-nodegroup-newn-NodeInstanceRole-18ZJKIC69UFA1
   username: system:node:{{EC2PrivateDNSName}}
+
+
+BinaryData
+====
+
 Events:  <none>
 ```
 
@@ -43,7 +48,7 @@ Events:  <none>
 
 ## 二、编辑配置文件添加新的管理员
 
-### 1、编辑配置文件（前文提到的A身份）
+### 1、开始编辑配置文件（前文提到的A身份）
 
 本步骤需要在使用eksctl命令创建EKS集群的这个客户端上执行。当使用eksctl创建好集群时，eksctl会在这台电脑上自动设置kubectl配置文件。因此继续使用kubectl可以在创建者这个客户端上完成配置。
 
@@ -53,29 +58,7 @@ Events:  <none>
 kubectl edit -n kube-system configmap/aws-auth
 ```
 
-编辑配置文件，此时会Windows会自动弹出记事本编辑器，Linux会自动进入vi编辑器。其默认内容如下。
-
-```
-# Please edit the object below. Lines beginning with a '#' will be ignored,
-# and an empty file will abort the edit. If an error occurs while saving this file will be
-# reopened with the relevant failures.
-#
-apiVersion: v1
-data:
-  mapRoles: |
-    - groups:
-      - system:bootstrappers
-      - system:nodes
-      rolearn: arn:aws-cn:iam::420029960748:role/eksctl-eksworkshopbj-nodegroup-no-NodeInstanceRole-BGKUROWI9QA5
-      username: system:node:{{EC2PrivateDNSName}}
-kind: ConfigMap
-metadata:
-  creationTimestamp: "2022-03-23T10:36:54Z"
-  name: aws-auth
-  namespace: kube-system
-  resourceVersion: "1256"
-  uid: b019ca52-a416-4726-96f0-a468d86203ac</code></pre>
-```
+编辑配置文件，此时会Windows会自动弹出记事本编辑器，Linux会自动进入vi编辑器。
 
 ### 2、添加新的IAM角色
 
@@ -86,7 +69,7 @@ metadata:
 ```
     - groups:
       - system:masters
-      rolearn: arn:aws-cn:iam::420029960748:role/newrolename
+      rolearn: arn:aws:iam::133129065110:role/newrolename
       username: newrolename
 ```
 
@@ -103,19 +86,19 @@ data:
     - groups:
       - system:bootstrappers
       - system:nodes
-      rolearn: arn:aws-cn:iam::420029960748:role/eksctl-eksworkshopbj-nodegroup-no-NodeInstanceRole-BGKUROWI9QA5
+      rolearn: arn:aws:iam::133129065110:role/eksctl-eksworkshop-nodegroup-newn-NodeInstanceRole-18ZJKIC69UFA1
       username: system:node:{{EC2PrivateDNSName}}
     - groups:
       - system:masters
-      rolearn: arn:aws-cn:iam::420029960748:role/newrolename
-      username: newrolename
+      rolearn: arn:aws:iam::133129065110:role/admin2
+      username: admin2
 kind: ConfigMap
 metadata:
-  creationTimestamp: "2022-03-23T10:36:54Z"
+  creationTimestamp: "2023-06-21T07:45:49Z"
   name: aws-auth
   namespace: kube-system
-  resourceVersion: "1256"
-  uid: b019ca52-a416-4726-96f0-a468d86203ac</code></pre>
+  resourceVersion: "26609"
+  uid: df7e4259-129d-418c-91c9-61a822706630
 ```
 
 修改后保存配置文件，关闭窗口即可生效。
@@ -126,7 +109,7 @@ metadata:
 
 ```
   mapUsers: | 
-    - userarn: arn:aws-cn:iam::420029960748:user/newusername 
+    - userarn: arn:aws:iam::133129065110:user/newusername 
       username: newusername 
       groups: 
         - system:masters
@@ -145,24 +128,24 @@ data:
     - groups:
       - system:bootstrappers
       - system:nodes
-      rolearn: arn:aws-cn:iam::420029960748:role/eksctl-eksworkshopbj-nodegroup-no-NodeInstanceRole-BGKUROWI9QA5
+      rolearn: arn:aws-cn:iam::133129065110:role/eksctl-eksworkshopbj-nodegroup-no-NodeInstanceRole-BGKUROWI9QA5
       username: system:node:{{EC2PrivateDNSName}}
   mapUsers: | 
-    - userarn: arn:aws-cn:iam::420029960748:user/newusername 
+    - userarn: arn:aws:iam::133129065110:user/newusername 
       username: newusername 
       groups: 
         - system:masters
-    - userarn: arn:aws-cn:iam::420029960748:user/newusername 
+    - userarn: arn:aws:iam::133129065110:user/newusername 
       username: newusername 
       groups: 
         - system:masters
 kind: ConfigMap
 metadata:
-  creationTimestamp: "2022-03-23T10:36:54Z"
+  creationTimestamp: "2023-06-21T07:45:49Z"
   name: aws-auth
   namespace: kube-system
-  resourceVersion: "1256"
-  uid: b019ca52-a416-4726-96f0-a468d86203ac</code></pre>
+  resourceVersion: "26609"
+  uid: df7e4259-129d-418c-91c9-61a822706630
 ```
 
 修改后保存配置文件，关闭窗口即可生效。
@@ -177,11 +160,13 @@ kubectl describe configmap -n kube-system aws-auth
 
 即可看到返回的授权信息中已经包含了新创建的IAM角色（B身份）或者IAM用户（B身份）了。
 
+这样，在AWS控制台上EKS服务界面显示的 `Your current IAM principal doesn’t have access to Kubernetes objects on this cluster. This might be due to the current IAM principal not having an access entry with permissions to access the cluster.` 这段错误信息也就消失了。
+
 ## 三、为新的用户生成kubectl配置
 
 在上文授权完毕后，可为新授权的IAM Role（B身份）或者IAM User（B身份）创建kube config配置文件，即可开始管理集群。
 
-（以B身份执行）首先进入当前用户home目录下，删除掉旧的配置文件。这个目录是隐藏目录。Windows默认在 C:\Users\Administrator\.kube\config 位置。Linux默认在当前主目录下 .kube/config 位置。
+（以B身份执行）首先进入当前用户home目录下，删除掉旧的配置文件。这个目录是隐藏目录。Windows默认在 C:\Users\Administrator\.kube\config 位置。Linux默认在当前主目录下 ~/.kube/config 位置。
 
 删除成功后，执行如下命令：
 
