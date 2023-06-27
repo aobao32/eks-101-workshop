@@ -455,7 +455,6 @@ metadata:
   name: "service-nginx"
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-    service.beta.kubernetes.io/aws-load-balancer-type: nlb
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
 spec:
   loadBalancerClass: service.k8s.aws/nlb
@@ -504,12 +503,12 @@ service-nginx   LoadBalancer   10.50.0.224   k8s-publicnl-servicen-112bd18a54-a6
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: private-nlb
+  name: private-nlb-fixed-ip
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: private-nlb
+  namespace: private-nlb-fixed-ip
   name: nginx-deployment
 spec:
   selector:
@@ -531,11 +530,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: private-nlb
+  namespace: private-nlb-fixed-ip
   name: "service-nginx"
   annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: nlb
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-name: myphpdemo
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: 172.31.48.254, 172.31.64.254, 172.31.80.254
 spec:
   loadBalancerClass: service.k8s.aws/nlb
   selector:
@@ -556,7 +560,7 @@ kubectl apply -f private-nlb.yaml
 返回结果：
 
 ```
-namespace/private-nlb created
+namespace/private-nlb-fixed-ip created
 deployment.apps/nginx-deployment created
 service/service-nginx created
 ```

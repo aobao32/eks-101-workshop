@@ -1,8 +1,8 @@
-# 为私有NLB使用指定IP地址
+# 实验九、为私有NLB使用指定的、固定的内网IP地址
 
 ## 一、背景
 
-在一些情况下，EKS部署的服务需要使用私有的NLB即 Internal NLB + Node Port 方式对外暴露服务，例如：
+在一些情况下，EKS部署的服务需要使用私有的NLB即 Internal NLB + Node Port 方式对VPC内的其他应用暴露服务，但是又不需要暴露在互联网上。这些场景可能包括：
 
 - 某个纯内网的微服务，不需要外部互联网调用，只需要从VPC和其他内网调用
 - 结合Gateway Load Balancer部署的多VPC的网络流量扫描方案，EKS所在的VPC为纯内网
@@ -10,29 +10,31 @@
 
 在这些场景下创建Internal NLB即可，不需要创建Internet-facing NLB。
 
-一般的流程是，创建NLB之后，再通过AWS控制台或者AWSCLI查询NLB所使用的VPC内的内网IP地址。为了简化管理，在使用EKS服务创建Service时候，可以手工指定希望使用的内网IP。
+一般的流程是创建NLB之后，通过AWS控制台或者AWSCLI查询NLB所使用的VPC内的内网IP地址，这个内网IP就是NLB的固定IP，在本NLB不删除的情况下，永远不会改变。如果希望在创建之前就确定使用哪些固定IP，则在EKS的配置中可手工指定希望使用的内网IP。
 
-## 二、NLB所在子网位置和可用IP地址
+## 二、确认私有NLB所在子网位置和可用IP地址
 
 ### 1、NLB所在子网位置
 
-本文的环境以“结合Gateway Load Balancer部署的多VPC的网络流量扫描方案、EKS所在的VPC为纯内网”为例，EKS所在的VPC分成多个子网，分别是TGW ENI子网、Node节点所在子网、Pod容器所在子网。其中，Pod所在子网还可以是VPC扩展IP地址即100.64网段。关于如何使用VPC扩展IP地址的说明，可以参考[这里](https://github.com/aobao32/eks-101-workshop/blob/main/08-use-seperated-subnet-for-pod.md)的文档。
+本文的EKS所在的VPC分成多个子网，且Node节点所在子网和Pod容器所在子网是两个独立的子网。此外，Pod所在子网还使用了VPC扩展IP地址段即100.64网段。关于如何使用VPC扩展IP地址的说明，可以参考[这里](https://github.com/aobao32/eks-101-workshop/blob/main/08-use-seperated-subnet-for-pod.md)的文档。
 
-在这样一个网络环境下，选择NLB落地的子网可以在TGW ENI子网和Node节点所在子网中任意选择。为了节约Node节点所在子网的IP地址，建议将NLB放到TGW ENI子网。接下来将确认这个子网的已经使用的IP地址的情况。
+在这样一个网络环境下，如果创建的VPC是纯内网访问的，建议选择NLB落地的子网可以在Node节点所在子网。接下来将确认这个子网的已经使用的IP地址的情况。
 
 ### 2、查询可用IP地址
 
-进入VPC的子网页面，通过子网界面，确认要部署私有NLB的TGW ENI子网的CIDR地址范围，例如本例中是`10.2.1.0/24`和`10.2.2.0/24`两个网段。从这两个子网中人为协商确认分配IP地址，例如分配`10.2.1.194`和`10.2.2.194`这两个IP地址。接下来通过ENI网卡查询是否被使用。
+进入VPC的子网页面，通过子网界面，确认要部署私有NLB的子网的CIDR地址范围，例如本例中是`default-vpc-private`共三个网段。如下截图。
 
-进入EC2界面，从左侧菜单找到ENI网卡，然后再搜索框中搜索要使用的IP地址。为了精确查找，可以逐段输入。当输入IP地址的前三段后，如果查询结果有匹配条目，则表示IP地址已经被使用。如果没有搜索到结果，则表示地址空闲，可以被使用。如下截图是搜索出来发现地址被占用的情况。
+![](https://blogimg.bitipcman.com/workshop/eks101/nlb-private-ip/private-ip-1.png)
 
-![通过ENI查询IP地址是否被使用](https://blogimg.bitipcman.com/2022/06/06114643/eni-private-ip.png)
+从这三个子网中人为协商确认分配IP地址，例如分配`172.31.48.254`，`172.31.64.254`，`172.31.80.254`这三个IP地址。接下来通过ENI网卡查询是否被使用。
 
-由此即可确定地址是否空闲，然后确认多个AZ对应多个子网各自可用的IP地址。
+进入EC2界面，从左侧菜单找到ENI网卡，然后再搜索框中搜索要使用的IP地址。为了精确查找，可以逐段输入。当输入IP地址的前三段后，如果查询结果有匹配条目，则表示IP地址已经被使用。如果没有搜索到结果，则表示地址空闲可以被使用。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/nlb-private-ip/private-ip-2.png)
 
 ### 3、确认已经安装AWS Load Balancer Controller
 
-在EKS 1.22版本上，原先的ALB Ingress已经改名为AWS Load Balancer Controller，因此不仅是使用ALB需要事先安装，使用NLB也需要提前安装好AWS Load Balancer Controller。安装方法请参考[这里](https://github.com/aobao32/eks-101-workshop/blob/main/02-deploy-alb-ingress.md)，本文不再赘述。
+安装方法请参考[这里](https://github.com/aobao32/eks-101-workshop/blob/main/02-deploy-alb-ingress.md)，本文不再赘述。
 
 ### 4、确认VPC和Subnet带有EKS的ELB所需要的标签
 
@@ -40,63 +42,67 @@
 
 找到当前的VPC，找到有EIP和NAT Gateway的Public Subnet，为其添加标签：
 
-标签名称：kubernetes.io/role/elb，值：1
-标签名称：kubernetes.io/cluster/eksworkshop，值：shared
+- 标签名称：kubernetes.io/role/elb，值：1
+
 接下来进入Private subnet，为其添加标签：
 
-标签名称：kubernetes.io/role/internal-elb，值：1
-标签名称：kubernetes.io/cluster/eksworkshop，值：shared
+- 标签名称：kubernetes.io/role/internal-elb，值：1
+
 接下来请重复以上工作，三个AZ的子网都实施相同的配置，注意第一项标签值都是1。
 
-## 三、EKS YAML样例
+## 三、启动应用部署私有NLB并指定内网IP
 
-编写如下yaml文件，替换其中的NLB参数和IP地址为需要使用的参数。此外，请替换其中的image镜像地址为您的ECR上的镜像地址，例如替换为`420029960748.dkr.ecr.cn-northwest-1.amazonaws.com.cn/phpdemo:4`，即可从ECR拉起镜像。
+### 1、部署应用并创建私有NLB
+
+编写如下yaml文件，替换其中的NLB参数和IP地址为需要使用的参数。
+
+注意：IP地址地址的总个数必须与上一步给子网做标记的子网数量相同。例如上一步有3个子网打了tag标签，那么这里也要提交3个IP。所有IP地址是字符串格式，需要前后加双引号的提交。此外，本例仅以使用外部的容器镜像仓库`public.ecr.aws/nginx/nginx:1.24-alpine-slim`作为例子，请替换其中的image镜像地址为您的ECR上的镜像地址。
 
 ```
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: private-nlb-fixed-ip
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: private-nlb-fixed-ip
   name: nginx-deployment
-  labels:
-    app: nginx
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      app.kubernetes.io/name: nginx
+  replicas: 3
   template:
     metadata:
       labels:
-        app: nginx
+        app.kubernetes.io/name: nginx
     spec:
       containers:
-      - name: nginx
-        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
+      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        imagePullPolicy: Always
+        name: nginx
         ports:
         - containerPort: 80
-        resources:
-          limits:
-            cpu: "1"
-            memory: 2G
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: private-nlb-fixed-ip
   name: "service-nginx"
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-name: myphpdemo
-        service.beta.kubernetes.io/aws-load-balancer-type: nlb-ip
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internal
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-        service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
-        service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: 10.2.1.194, 10.2.2.194
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: "172.31.48.250, 172.31.64.250, 172.31.80.250"
 spec:
+  loadBalancerClass: service.k8s.aws/nlb
   selector:
-    app: nginx
+    app.kubernetes.io/name: nginx
   type: LoadBalancer
   ports:
   - protocol: TCP
@@ -110,9 +116,40 @@ spec:
 kubectl apply -f NLB-internal-with-private-ip.yaml
 ```
 
+### 2、查看私有NLB的入口
+
+执行如下命令查看NLB入口。
+
+```
+kubectl get service service-nginx -n private-nlb-fixed-ip -o wide 
+```
+
+返回结果如下：
+
+```
+NAME            TYPE           CLUSTER-IP   EXTERNAL-IP                                                                          PORT(S)        AGE   SELECTOR
+service-nginx   LoadBalancer   10.50.0.82   k8s-privaten-servicen-0b69eabbfb-22e4e160550e1514.elb.ap-southeast-1.amazonaws.com   80:31758/TCP   32s   app.kubernetes.io/name=nginx
+```
+
+其中标记`EXTERNAL-IP`的字段就是Private NLB的地址，则个地址只能从VPC内访问，不可重互联网访问。
+
 启动完毕后，进入EC2界面，查看NLB的情况，即可看到NLB分配了TGW ENI子网的静态IP地址。如下截图。
 
-![](https://blogimg.bitipcman.com/2022/06/06120453/eni-private-ip-2.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/nlb-private-ip/private-ip-3.png)
+
+### 3、测试访问
+
+使用EC2 Connect功能，选择Session Manager登陆到EKS的Node节点。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/nlb-private-ip/private-ip-4.png)
+
+在弹出的对话框内，选择第二个标签页`Session Manager`，点击右下角的`Connect`按钮。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/nlb-private-ip/private-ip-5.png)
+
+登陆到Node节点后，通过curl命令访问上一步查询到的私有NLB的地址，可以看到访问正常。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/nlb-private-ip/private-ip-6.png)
 
 ## 四、其他注意事项
 
@@ -120,7 +157,6 @@ kubectl apply -f NLB-internal-with-private-ip.yaml
 
 ## 五、参考文档
 
-[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#private-ipv4-addresses](https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#private-ipv4-addresses)
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#private-ipv4-addresses]()
 
 全文完。
-

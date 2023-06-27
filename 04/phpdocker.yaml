@@ -20,7 +20,7 @@ spec:
         app.kubernetes.io/name: php
     spec:
       containers:
-      - image: 383292813273.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
+      - image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
         imagePullPolicy: Always
         name: php
         ports:

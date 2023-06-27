@@ -172,6 +172,7 @@ sudo -i
 yum update -y
 yum install -y docker
 service docker start
+systemctl enable docker
 usermod -a -G docker ec2-user
 ```
 
@@ -245,7 +246,7 @@ public.ecr.aws/amazonlinux/amazonlinux   2023      81f7bc2150ae   7 days ago    
 首先在开发环境上配置AWSCLI。配置好AKSK密钥后，执行如下命令登陆到ECR：
 
 ```
-aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 383292813273.dkr.ecr.ap-southeast-1.amazonaws.com
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com
 ```
 
 请替换对应的AWS Account ID（12位数字账号）和操作的Region为当前环境的真实值。
@@ -265,16 +266,16 @@ Login Succeeded
 请替换如下命令中的容器名称、ECR地址为实际名称和地址。
 
 ```
-docker tag php:latest 383292813273.dkr.ecr.ap-southeast-1.amazonaws.com/php
-docker push 383292813273.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
+docker tag php:latest 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
+docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
 ```
 
 操作成功的话返回如下：
 
 ```
-docker push 383292813273.dkr.ecr.ap-southeast-1.amazonaws.com/php
+docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php
 Using default tag: latest
-The push refers to repository [383292813273.dkr.ecr.ap-southeast-1.amazonaws.com/php]
+The push refers to repository [133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php]
 4135e952e25c: Pushed
 9b66f00047a4: Pushed
 7d2cdf1e4b23: Pushed
@@ -284,7 +285,7 @@ latest: digest: sha256:ccb313d61cc92981f84ac70cc45771d3f6e5999c64de1d6b979042891
 #### （7）获得ECR上镜像仓库的地址
 
 ```
-383292813273.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
+133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
 ```
 
 注意，不同region的名称不一样，以及最后要包含tag版本号。
@@ -316,7 +317,7 @@ spec:
         app.kubernetes.io/name: php
     spec:
       containers:
-      - image: 383292813273.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
+      - image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
         imagePullPolicy: Always
         name: php
         ports:

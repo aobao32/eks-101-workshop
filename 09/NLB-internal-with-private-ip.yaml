@@ -1,47 +1,47 @@
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: private-nlb-fixed-ip
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: private-nlb-fixed-ip
   name: nginx-deployment
-  labels:
-    app: nginx
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      app.kubernetes.io/name: nginx
+  replicas: 3
   template:
     metadata:
       labels:
-        app: nginx
+        app.kubernetes.io/name: nginx
     spec:
       containers:
-      - name: nginx
-        image: 420029960748.dkr.ecr.cn-northwest-1.amazonaws.com.cn/phpdemo:4
+      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        imagePullPolicy: Always
+        name: nginx
         ports:
         - containerPort: 80
-        resources:
-          limits:
-            cpu: "1"
-            memory: 2G
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: private-nlb-fixed-ip
   name: "service-nginx"
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-name: myphpdemo
-        service.beta.kubernetes.io/aws-load-balancer-type: external
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-        service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
-        service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: 10.2.1.194, 10.2.2.194
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: "172.31.48.250, 172.31.64.250, 172.31.80.250"
 spec:
+  loadBalancerClass: service.k8s.aws/nlb
   selector:
-    app: nginx
+    app.kubernetes.io/name: nginx
   type: LoadBalancer
   ports:
   - protocol: TCP
