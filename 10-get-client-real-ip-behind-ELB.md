@@ -4,13 +4,7 @@
 
 ### 1、没有EKS而是使用EC2场景下获取客户端真实IP地址
 
-在之前的文章主要是介绍ELB+EC2模式下，获取客户端真实IP，可参考AWS官方知识库：
-
-[https://aws.amazon.com/cn/premiumsupport/knowledge-center/elb-capture-client-ip-addresses/](https://aws.amazon.com/cn/premiumsupport/knowledge-center/elb-capture-client-ip-addresses/)
-
-也可参考过往的blog文章：
-
-[https://blog.bitipcman.com/get-real-client-ip-from-nlb-and-alb/](https://blog.bitipcman.com/get-real-client-ip-from-nlb-and-alb/)
+在之前的文章主要是介绍ELB+EC2模式下，获取客户端真实IP，可参考AWS官方知识库[这篇](https://aws.amazon.com/cn/premiumsupport/knowledge-center/elb-capture-client-ip-addresses/)文章。也可参考过往的blog文章的[这篇](https://blog.bitipcman.com/get-real-client-ip-from-nlb-and-alb/)文章。
 
 在这两篇中，主要讲解是ELB+EC2场景获取真实IP地址。如果用一个表格快速概括的话，汇总如下：
 
@@ -23,7 +17,7 @@
 
 ### 2、EKS环境下获取客户端真实IP地址
 
-在EKS环境上，ELB的选择又包括：NLB Service模式和ALB Ingress两种模式。其中，NLB注册目标组还有IP模式和Instance模式两种。
+在EKS环境上，ELB的选择又包括：NLB和ALB两种模式。其中，NLB注册目标组还有IP模式和Instance模式两种。
 
 在这几种模式下，获取真实IP地址方案与ELB+EC2场景有所差别，其原因是EKS上的aws-vpc-cni和kube-proxy负责网络流量的转发，再加上AWS Load Balancer Controller负责Ingress，所以与普通ELB直接对接EC2相比有所差异。本文分别测试如下场景。
 
@@ -47,7 +41,7 @@ usermod -a -G docker ec2-user
 
 ```
 git clone https://github.com/aobao32/eks-101-workshop.git
-cd eks-101-workshop/10/phpdemo
+cd eks-101-workshop/10/phpdemo-amazonlinux2
 docker build -t phpdemo:1 .
 ```
 
@@ -68,14 +62,16 @@ docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
 为了测试IP地址的正常显示，这里使用上一步构建的的测试用Apache+PHP的容器，其中已经包含了一个默认页面`index.php`，其代码会显示访问者的客户端IP地址。文件`index.php`的内容如下。
 
 ```
-Client IP Address is: <?php printf($_SERVER["REMOTE_ADDR"]); ?>
+<h1>REMOTE_ADDR Address is: <?php printf($_SERVER["REMOTE_ADDR"]); ?></h1>
+
+<h1>X_FORWARD Address is: <?php printf($_SERVER["REMOTE_ADDR"]); ?></h1>
 ```
 
 按照上文的步骤，将这个php容器构建好，上传到ECR容器镜像，供EKS使用。
 
 ### 2、构建NLB+IP模式的YAML文件
 
-然后为EKS构建一个yaml配置文件，保存为`NLB-ip.yaml`。并替换其中ECR容器镜像地址`133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1`为实际使用的地址。
+为EKS构建一个yaml配置文件，保存为`NLB-ip.yaml`。并替换其中ECR容器镜像地址`133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1`为实际使用的地址。
 
 ```
 ---
@@ -173,80 +169,84 @@ service-nginx   LoadBalancer   10.50.0.53   nlb-ip-mode-8126dfb994dbac45.elb.ap-
 
 由此表示，应用程序通过NLB+IP模式，正常的获取到了客户端的真实IP地址。
 
-## 三、使用NLB+目标组为Instance模式+Proxy V2协议获取客户端真实IP
+## 三、使用NLB+目标组Instance模式+Proxy V2协议获取客户端真实IP
 
-### 1、构建容器并启用Proxy V2协议
+### 1、编辑配置文件打开Proxy V2协议并重新构建容器
 
-容器中的输出客户端IP地址的PHP代码同上同上一步。
+在本测试中，通过Apache上启用Proxy V2协议的支持。Apache2可以通过mod_remoteip模块，一键打开对Proxy协议的支持。使用Amazon Linux 2安装的Apache，则已经内置了mod_remoteip模块。如果是使用CentOS系统自带的yum安装，也应该是内置支持的。
 
-在本测试中，通过Apache上启用Proxy V2协议的支持。Apache2可以通过mod_remoteip模块，一键打开对Proxy协议的支持。使用Amazon Linux 2安装的Apache，则已经内置了mod_remoteip模块。如果是使用CentOS系统自带的yum安装，也应该是内置支持的。如果您是手工安装的Apache，则需要查找对应模块，是否已经编译正确并放置so文件到正确的路径下。
+编辑上文构建容器镜像时候，从Github下载的代码中，名为`/10/phpdemo-amazonlinux2/src/httpd.conf`的配置文件。
 
-编辑如下配置文件。
-
-```
-vi /etc/httpd/conf/httpd.conf
-```
-
-在找到 `ServerAdmin root@localhost` 这一行。在这一行的下边，加入如下一行配置：
+在找到 `ServerAdmin root@localhost` 这一行。在这一行的下边，加入如下一行配置。
 
 ```
 RemoteIPProxyProtocol On
 ```
 
-需要注意的是，这个配置应加载于默认网站或者VirtualHost的配置段内，不能在其他位置任意填写，否则Apache会无法启动。
+如果这一行已经存在但是被注释掉，那么删除前边的`#`注释符号即可。此外，需要注意的是，这个配置应加载于默认网站或者VirtualHost的配置段内，不能在其他位置任意填写，否则Apache会无法启动。
 
-修改完毕后，重新build容器，让本容器内启动的apache默认打开对Proxy V2的支持。
-
-### 2、构建YAML文件
-
-构建一个yaml配置文件如下。
+修改完毕后，重新build容器，可修改构建容器时候的版本号，使之与前文的区别开。
 
 ```
+docker build -t phpdemo:2 .
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com
+docker tag phpdemo:2 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2
+docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2
+```
+
+构建完毕后，即可在ECR上获得名为`133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2`的容器镜像。注意本容器镜像与前一个实验的版本号区别开。
+
+### 2、构建应用和NLB的Yaml文件
+
+为EKS构建一个yaml配置文件，保存为`NLB-instance.yaml`。并替换其中ECR容器镜像地址`133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2`为实际使用的地址。
+```
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nlb-instance-mode
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nlb-instance
-  labels:
-    app: nlb-instance
+  namespace: nlb-instance-mode
+  name: nginx-deployment
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      app: nlb-instance
+      app.kubernetes.io/name: nginx
+  replicas: 3
   template:
     metadata:
       labels:
-        app: nlb-instance
+        app.kubernetes.io/name: nginx
     spec:
       containers:
-      - name: nlb-instance
-        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
+      - image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2
+        imagePullPolicy: Always
+        name: nginx
         ports:
         - containerPort: 80
-        resources:
-          limits:
-            cpu: "1"
-            memory: 2G
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: "nlb-instance"
+  namespace: nlb-instance-mode
+  name: "service-nginx"
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-name: nlb-instance
-        service.beta.kubernetes.io/aws-load-balancer-type: external
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-        service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
-        service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: proxy_protocol_v2.enabled=true
-
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance
+    service.beta.kubernetes.io/aws-load-balancer-name: nlb-instance-mode
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: proxy_protocol_v2.enabled=true
 spec:
+  loadBalancerClass: service.k8s.aws/nlb
   selector:
-    app: nlb-instance
+    app.kubernetes.io/name: nginx
   type: LoadBalancer
   ports:
   - protocol: TCP
@@ -257,22 +257,36 @@ spec:
 执行如下命令创建环境：
 
 ```
-kubectl apply -f 
+kubectl apply -f NLB-instance.yaml
 ```
 
-使用这个yaml创建服务。然后测试NLB入口地址。
+### 3、访问NLB查看IP地址
 
-### 4、访问NLB查看IP地址
+执行如下命令查询NLB入口地址。
 
 ```
-admin2:~/environment $ curl nlb-instance-d3704cf68361ea94.elb.ap-southeast-1.amazonaws.com
-
-REMOTE_ADDR Address is: 13.214.132.220
-
-admin2:~/environment $ 
+kubectl get service service-nginx -n nlb-instance-mode -o wide 
 ```
 
-访问NLB后可看到获取到正确的客户端地址。
+返回结果如下：
+
+```
+
+NAME            TYPE           CLUSTER-IP    EXTERNAL-IP                                                           PORT(S)        AGE   SELECTOR
+service-nginx   LoadBalancer   10.50.0.196   nlb-instance-mode-40281b4b20452fcf.elb.ap-southeast-1.amazonaws.com   80:32209/TCP   10m   app.kubernetes.io/name=nginx
+```
+
+现在用命令行curl请求EKS生成的NLB，当然也可以通过浏览器访问这个地址。即可看到客户端返回的是真实IP地址。
+
+```
+
+<h1>REMOTE_ADDR Address is: 13.214.133.109</h1>
+
+<h1>X_FORWARD Address is: 13.214.133.109</h1>
+
+```
+
+由此表示，应用程序通过NLB+Instance模式，正常的获取到了客户端的真实IP地址。
 
 ## 四、使用ALB Ingress获取客户端真实IP
 
