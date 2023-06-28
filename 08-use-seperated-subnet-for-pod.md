@@ -304,9 +304,9 @@ eksctl delete nodegroup --name newng1 --cluster eksworkshop
 
 删除完毕后，即可在新的节点上用新的网络配置启动应用，这时候应用Pod网段将会与Node网段独立开。
 
-## 五、测试多种ELB部署方式
+## 五、测试多种ELB部署场景
 
-### 1、在公有子网部署ALB Ingress
+### 1、在公有子网部署ALB Ingress并测试从互联网访问
 
 #### （1）部署应用
 
@@ -409,13 +409,15 @@ NAME                    CLASS   HOSTS   ADDRESS                                 
 ingress-for-nginx-app   alb     *       k8s-publical-ingressf-e3bf1572ab-1992535472.ap-southeast-1.elb.amazonaws.com   80      14s
 ```
 
-使用浏览器访问ALB的地址，即可看到应用部署成功。
+#### （3）测试ALB访问
 
-### 2、在公有子网创建NLB并使用NodePort方式暴露应用
+使用浏览器访问上一步获得的ALB的地址，即可看到应用部署成功。
 
-如果需求方式是使用Node节点的高位端口暴露应用，那么可不使用ALB Ingress，只是使用简单的NodePort方式暴露应用。前文在创建子网部分已经描述了如何在Subnet上打上EKS的tag，由此EKS会自动找到对应子网。
+### 2、在公有子网创建NLB并通过互联网访问
 
-####  （1）部署应用
+如果需求方式是网络流量发布而非HTTP请求发布，那么可不使用ALB Ingress，而是使用NLB发布四层端口。前文在创建子网部分已经描述了如何在Subnet上打上EKS的tag，由此EKS会自动找到对应子网。
+
+####  （1）部署测试应用
 
 构建如下测试应用：
 
@@ -481,7 +483,7 @@ deployment.apps/nginx-deployment created
 service/service-nginx created
 ```
 
-#### （2）查看Pvivate NLB入口地址并测试
+#### （2）查看Public NLB的入口地址
 
 查看NLB入口。
 
@@ -489,14 +491,24 @@ service/service-nginx created
 kubectl get service service-nginx -n public-nlb -o wide 
 ``` 
 
+返回结果如下。
+
 ```
 NAME            TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE    SELECTOR
 service-nginx   LoadBalancer   10.50.0.224   k8s-publicnl-servicen-112bd18a54-a628f86f0217bffa.elb.ap-southeast-1.amazonaws.com   80:31011/TCP   118s   app.kubernetes.io/name=nginx
 ```
 
-### 3、在私有子网部署内网的NLB
+即可获得NLB的入口地址。
 
-在某些模式下，我们只需要对VPC内网或者其他VPC、专线等另一侧暴露内网NLB。因此这时候就不需要构建基于Internet-facing的公网NLB了。这种场景下，构建如下一段配置：
+#### （3）测试公有NLB
+
+从互联网访问上一步查询出来的NLB入口，可看到访问正常。
+
+### 3、在私有子网部署只能从内网访问的私有NLB
+
+#### （1）构建应用和私有NLB配置
+
+在某些模式下，我们只需要对VPC内网或者其他VPC、专线等另一侧暴露内网NLB。因此这时候就不需要构建基于Internet-facing的公网NLB了，而是将NLB配置为私有NLB，其访问入口也只能通过VPC访问。构建如下一段配置：
 
 ```
 ---
@@ -580,13 +592,19 @@ service-nginx   LoadBalancer   10.50.0.34   k8s-privaten-servicen-3fe387f3ed-3b1
 
 这个地址将会解析为内网IP。
 
-### 4、确认Pod运行在独立网段
+#### （3）测试从VPC内访问私有NLB
 
-启动完成后，查看所有pod的IP，可发现除默认负责网络转发的kube-proxy和aws-node（VPC CNI）还运行在Node所在的Subnet上之外，新创建的应用都会运行在新的子网和IP地址段上。如下截图。
+从VPC内访问以上的NLB入口地址，即可看到应用加载正常。
+
+## 六、确认Pod运行在和Node相互独立的网段
+
+上述几个场景的实验完整后，EKS集群上分别有了可从外网访问的ALB Ingress、Public NLB和Private NLB，以及他们背后的应用pod。
+
+现在查看所有pod的IP，可发现除默认负责网络转发的kube-proxy和aws-node（VPC CNI）还运行在Node所在的Subnet上之外，新创建的应用都会运行在新的子网和IP地址段上。如下截图。
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod11.png)
 
-## 八、参考文档
+## 七、参考文档
 
 Github上的AWS VPC CNI代码和文档：
 

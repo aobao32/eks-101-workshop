@@ -33,79 +33,98 @@
 
 本文实验环境构建一个Apache+PHP容器，并在其中放置一个默认页面`index.php`显示客户端IP地址。这个环境的代码在Github上[这里](https://github.com/aobao32/eks-101-workshop/tree/main/10/phpdemo)可以获得。
 
-在配置好AWSCLI的情况下，并且ECR容器镜像仓库也配置好存储库的情况下，使用如下命令构建这个测试容器：
+在一台使用Amazon Linux 2操作系统的EC2上安装Docker环境：
 
 ```
+yum update -y
+yum install -y docker
+systemctl start docker
+systemctl enable docker
+usermod -a -G docker ec2-user
+```
+
+下载测试用docker容器配置文件（含PHP程序），并构建容器。此部分操作如果不熟悉，可参考[这篇](https://blog.bitipcman.com/push-docker-image-to-aws-ecr-docker-repository/)博客讲述如何构建容器镜像并上传到ECR镜像仓库。
+
+```
+git clone https://github.com/aobao32/eks-101-workshop.git
+cd eks-101-workshop/10/phpdemo
 docker build -t phpdemo:1 .
-docker tag phpdemo:1 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
-aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com
-docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2
 ```
 
-由此即可获得构建好的容器，稍后用于EKS测试。
+在ECR服务上，创建好名为`phpdemo`的仓库，然后从EC2上推送刚才构建好的容器到ECR。
+
+```
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com
+docker tag phpdemo:1 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
+docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
+```
+
+由此即可获得构建好的容器，稍后用于EKS测试。将ECR上的容器镜像地址`133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1`，复制下来，用于下一步使用。
 
 ## 二、使用NLB+目标组IP模式获取客户端真实IP
 
 ### 1、构建测试容器
 
-为了测试IP地址的正常显示，我们启动一个运行Apache+PHP的容器，并在其中放置一个默认页面`index.php`显示客户端IP地址。其内容如下。
+为了测试IP地址的正常显示，这里使用上一步构建的的测试用Apache+PHP的容器，其中已经包含了一个默认页面`index.php`，其代码会显示访问者的客户端IP地址。文件`index.php`的内容如下。
 
 ```
 Client IP Address is: <?php printf($_SERVER["REMOTE_ADDR"]); ?>
 ```
 
-将这个php容器构建好，上传到ECR容器镜像，供EKS使用。
+按照上文的步骤，将这个php容器构建好，上传到ECR容器镜像，供EKS使用。
 
-### 2、构建YAML文件
+### 2、构建NLB+IP模式的YAML文件
 
-然后为EKS构建一个yaml配置文件如下。然后测试NLB入口地址。
+然后为EKS构建一个yaml配置文件，保存为`NLB-ip.yaml`。并替换其中ECR容器镜像地址`133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1`为实际使用的地址。
 
 ```
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nlb-ip-mode
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: nlb-ip-mode
   name: nginx-deployment
-  labels:
-    app: nginx
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      app.kubernetes.io/name: nginx
+  replicas: 3
   template:
     metadata:
       labels:
-        app: nginx
+        app.kubernetes.io/name: nginx
     spec:
       containers:
-      - name: nginx
-        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:2
+      - image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
+        imagePullPolicy: Always
+        name: nginx
         ports:
         - containerPort: 80
-        resources:
-          limits:
-            cpu: "1"
-            memory: 2G
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: nlb-ip-mode
   name: "service-nginx"
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-name: myphpdemo
-        service.beta.kubernetes.io/aws-load-balancer-type: external
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-        service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
-        service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: preserve_client_ip.enabled=true
-
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-name: nlb-ip-mode
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: preserve_client_ip.enabled=true
 spec:
+  loadBalancerClass: service.k8s.aws/nlb
   selector:
-    app: nginx
+    app.kubernetes.io/name: nginx
   type: LoadBalancer
   ports:
   - protocol: TCP
@@ -113,18 +132,46 @@ spec:
     targetPort: 80
 ```
 
-创建完毕后，可进入NLB的目标组，可看到Pod注册为IP模式。在NLB的属性设置页面，保留客户端IP的选项显示为`Enable`。
+执行如下命令启动服务：
+
+```
+kubectl apply -f NLB-ip.yaml
+```
+
+返回结果如下：
+
+```
+namespace/nlb-ip-mode created
+deployment.apps/nginx-deployment created
+service/service-nginx created
+```
+
+创建完毕后，可使用AWS控制台，进入ELB界面，查看NLB对应的目标组，可看到Pod注册为IP模式。在NLB的属性设置页面，保留客户端IP的选项显示为`Enable`。
 
 ### 3、访问NLB入口
 
-现在用命令行curl请求EKS生成的NLB，即可看到客户端返回的是真实IP地址。
+执行如下命令查询NLB入口地址。
 
 ```
-admin2:~/environment $ curl myphpdemo-7ed770009c9698f4.elb.ap-southeast-1.amazonaws.com
-
-Client IP Address is: 13.212.147.226
-admin2:~/environment $ ll
+kubectl get service service-nginx -n nlb-ip-mode -o wide 
 ```
+
+返回结果如下：
+
+```
+NAME            TYPE           CLUSTER-IP   EXTERNAL-IP                                                     PORT(S)        AGE    SELECTOR
+service-nginx   LoadBalancer   10.50.0.53   nlb-ip-mode-8126dfb994dbac45.elb.ap-southeast-1.amazonaws.com   80:31178/TCP   116s   app.kubernetes.io/name=nginx
+```
+
+现在用命令行curl请求EKS生成的NLB，当然也可以通过浏览器访问这个地址。即可看到客户端返回的是真实IP地址。
+
+```
+<h1>REMOTE_ADDR Address is: 39.144.107.70</h1>
+
+<h1>X_FORWARD Address is: 39.144.107.70</h1>
+```
+
+由此表示，应用程序通过NLB+IP模式，正常的获取到了客户端的真实IP地址。
 
 ## 三、使用NLB+目标组为Instance模式+Proxy V2协议获取客户端真实IP
 
@@ -174,7 +221,7 @@ spec:
     spec:
       containers:
       - name: nlb-instance
-        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:3
+        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
         ports:
         - containerPort: 80
         resources:
@@ -205,6 +252,12 @@ spec:
   - protocol: TCP
     port: 80
     targetPort: 80
+```
+
+执行如下命令创建环境：
+
+```
+kubectl apply -f 
 ```
 
 使用这个yaml创建服务。然后测试NLB入口地址。
@@ -350,9 +403,9 @@ admin2:~/environment $
 
 ### 3、参考文档
 
-[https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#client-ip-preservation](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#client-ip-preservation)
+[https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#client-ip-preservation]()
 
-[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#load-balancer-attributes](https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#load-balancer-attributes)
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#load-balancer-attributes]()
 
 
 

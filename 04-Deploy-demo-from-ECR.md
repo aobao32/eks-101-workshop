@@ -431,12 +431,12 @@ kubectl delete -f phpdocker.yaml
 
 AWS Load Balancer Controller Ingress annotations 参数说明
 
-[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/annotations/](https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/annotations/)
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/annotations/](h)
 
 AWS Load Balancer Controller Ingress specification 参数说明
 
-[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/spec/](https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/spec/)
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/spec/]()
 
 手把手教你如何在 EKS 上轻松部署混合架构节点
 
-[https://aws.amazon.com/cn/blogs/china/how-to-easily-deploy-hybrid-architecture-nodes-on-eks/](https://aws.amazon.com/cn/blogs/china/how-to-easily-deploy-hybrid-architecture-nodes-on-eks/)
+[https://aws.amazon.com/cn/blogs/china/how-to-easily-deploy-hybrid-architecture-nodes-on-eks/]()

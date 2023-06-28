@@ -1,48 +1,50 @@
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nlb-ip-mode
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nlb-ip
-  labels:
-    app: nlb-ip
+  namespace: nlb-ip-mode
+  name: nginx-deployment
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      app: nlb-ip
+      app.kubernetes.io/name: nginx
+  replicas: 3
   template:
     metadata:
       labels:
-        app: nlb-ip
+        app.kubernetes.io/name: nginx
     spec:
       containers:
-      - name: nlb-ip
-        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:5
+      - image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/phpdemo:1
+        imagePullPolicy: Always
+        name: nginx
         ports:
         - containerPort: 80
-        resources:
-          limits:
-            cpu: "1"
-            memory: 2G
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: "nlb-ip"
+  namespace: nlb-ip-mode
+  name: "service-nginx"
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-name: nlb-ip
-        service.beta.kubernetes.io/aws-load-balancer-type: external
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-        service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
-        service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: preserve_client_ip.enabled=true
-
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-name: nlb-ip-mode
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: preserve_client_ip.enabled=true
 spec:
+  loadBalancerClass: service.k8s.aws/nlb
   selector:
-    app: nlb-ip
+    app.kubernetes.io/name: nginx
   type: LoadBalancer
   ports:
   - protocol: TCP
