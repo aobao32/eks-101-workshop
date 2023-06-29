@@ -1,5 +1,7 @@
 # 在EKS上的ELB获取最终用户的真实IP地址
 
+EKS 1.27版本 @2023-06 AWS Global区域测试通过
+
 ## 一、背景
 
 ### 1、没有EKS而是使用EC2场景下获取客户端真实IP地址
@@ -404,20 +406,24 @@ service-nginx   LoadBalancer   10.50.0.196   nlb-instance-mode-40281b4b20452fcf.
 
 | 类型 | Target类型 | 是否直接透传 | EKS上Pod获取真实IP的方案 |
 |:--------- |:---------|:---|:----------------------|
-| NLB       | IP | 是 | 启用NLB目标组保留功能可以原始IP|
-| NLB       | Instance       | 否 | 需要应用程序支持，在Apache/Nginx上启用 Proxy V2 Protocol后可获取客户端原始IP|
-| ALB       | IP       | 否 | 在应用程序上获取X-Forwarded-For的HTTP Header即可看到真实IP|
+| ALB       | IP       | 否 | 在应用程序上获取X-Forwarded-For的HTTP Header即可获得真实IP|
+| NLB       | IP | 是 | 启用NLB的目标组保留原始IP功能后，应用系统无须修改即可获得客户端真实IP|
+| NLB       | Instance       | 否 | 需要应用程序支持，例如在Apache/Nginx上启用 Proxy V2 Protocol 后可获取客户端原始IP|
 
 ### 2、推荐和建议
 
 结论：考虑如下搭配组合：
 
-* **1、使用NLB Target Group IP模式**：在这种打开保留客户端IP选项后，即可直接在EKS应用中获取客户端IP地址，步骤简单方便，推荐使用。
-* **2、使用ALB Ingress模式**：此场景与普通ALB+EC2的方式相同，都是通过X_FORWARDED Header来获取真实IP地址。
+* **1、使用ALB Ingress模式**：此场景与普通ALB+EC2的方式相同，都是通过X_FORWARDED Header来获取真实IP地址。
+* **2、使用NLB Target Group IP模式**：在这种打开保留客户端IP选项后，即可直接在EKS应用中获取客户端IP地址，步骤简单方便，推荐使用。
 * **3、使用NLB Target Group 为Instance模式**：需要应用侧额外配置Proxy V2协议。步骤相对较多，复杂。
 
 ### 3、参考文档
 
-[https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#client-ip-preservation]()
+NLB的客户端IP保留
 
-[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#load-balancer-attributes]()
+[https://docs.aws.amazon.com/zh_cn/elasticloadbalancing/latest/network/load-balancer-target-groups.html#client-ip-preservation]()
+
+AWS Load Balancer Controller Ingress specification 参数说明
+
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/spec/]()
