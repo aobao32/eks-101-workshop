@@ -169,7 +169,7 @@ eksctl create nodegroup -f spot-nodegroup.yaml
 
 进入EC2控制台，点击左侧菜单的`Spot requests`，即可看到正常启动了三台EC2作为Nodegroups节点组。如下截图。
 
-![](https://blogimg.bitipcman.com/workshop/eks101/spot/spot-02.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/spot/spot-05.png)
 
 ### 3、通过kubectl查询新的Spot的Nodegroup
 
