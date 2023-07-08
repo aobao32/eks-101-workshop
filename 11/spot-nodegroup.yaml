@@ -4,17 +4,22 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.23"
+  version: "1.27"
 
 managedNodeGroups:
   - name: spot1
     labels:
       Name: spot1
-    instanceTypes: ["m4.2xlarge","m5.2xlarge","m5d.2xlarge"]
+    instanceTypes: ["m6g.2xlarge","t4g.2xlarge"]
     spot: true
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
+    privateNetworking: true
+    subnets:
+      - subnet-04a7c6e7e1589c953
+      - subnet-031022a6aab9b9e70
+      - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
     tags:
@@ -23,7 +28,9 @@ managedNodeGroups:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        certManager: true
         efs: true
+        ebs: true
         albIngress: true
         xRay: true
         cloudWatch: true

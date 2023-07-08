@@ -2,7 +2,7 @@
 
 ## 一、规划使用Spot实例
 
-### 1、为什么要使用Spot机型
+### 1、使用Spot类型的优势
 
 EC2 Spot是云端当前Region和AZ内闲置的计算资源对外低价提供短期用途的一种商务模式。成本测算如下：
 
@@ -104,37 +104,45 @@ Spot的目标是低成本的实现弹性扩展。因此，Spot机型的历史价
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/spot/spot-04-2.png)
 
-几个价格对比下来，Graviton2处理器虽然单价便宜，但总体容量不如之前的Intel机型，因此选择上一代Intel机型的Spot是价格最便宜的。本文为了方便代码编写和测试，将继续使用Graviton2的Spot机型。虽然价格没有Intel机型低，但是与本机型按需使用的On-Demand相比，依然有很大折扣，而且之前本文构建的ECR容器镜像，都是按照ARM架构构建的。因此本文的实验，将使用`m6g.2xlarge`的Spot机型进行构建。
+几个价格对比下来，Graviton2处理器虽然单价便宜，但总体容量不如之前的Intel机型，因此选择上一代Intel机型的Spot是价格最便宜的。
+
+### 5、本项目最终选择的Spot机型
+
+本文为了方便代码编写和测试，将继续使用Graviton2的Spot机型。虽然价格没有Intel机型低，但是与按需计费On-Demand模式相比，依然有很大折扣。
+
+此外，而且之前本文所有实验步骤构建的ECR容器镜像都是按照ARM架构构建的。因此本文的实验，将使用`m6g.2xlarge`的Spot机型进行构建，同时由于是实验环节，因此还加入了`t4g.2xlarge`。生产环境不建议使用t系列机型。
 
 ## 二、新建使用Spot的Nodegroup
 
-首先本文假设集群已经创建好，并且有Nodegroup存在，同时部署了AWS Load Balancer Controller等必要的逐渐。搭建本文实验环境可参考[这篇](https://blog.bitipcman.com/use-dedicate-subnet-for-eks-node-with-aws-vpc-cni/)文档完成。下面开始部署Spot节点。
-
 ### 1、为现有的EKS集群创建新的使用Spot的Nodegroup
 
-本文假设
+本文假设集群已经创建好，并且有Nodegroup存在，同时部署了AWS Load Balancer Controller等必要的逐渐。搭建本文实验环境可参考[这篇](https://blog.bitipcman.com/use-dedicate-subnet-for-eks-node-with-aws-vpc-cni/)文档完成。下面开始部署Spot节点。
 
-编辑如下内容，并保存为`spot-nodegroup.yaml`文件。需要注意的是，如果新创建的Nodegroup在Public Subnet内，这直接使用如下内容即可。如果新创建的Nodegroup在Private Subnet内，那么请增加如下一行`privateNetworking: true`到配置文件中。添加的位置在`volumeSize`的下一行即可。
+编辑如下内容，并保存为`spot-nodegroup.yaml`文件。因为前文创建的EKS和Nodegroup都是在在Private Subnet内，因此本文的配置也遵循相同的网络架构。
 
 ```
 apiVersion: eksctl.io/v1alpha5
-
 kind: ClusterConfig
 
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.23"
+  version: "1.27"
 
 managedNodeGroups:
   - name: spot1
     labels:
       Name: spot1
-    instanceTypes: ["m4.2xlarge","m5.2xlarge","m5d.2xlarge"]
+    instanceTypes: ["m6g.2xlarge","t4g.2xlarge"]
     spot: true
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
+    privateNetworking: true
+    subnets:
+      - subnet-04a7c6e7e1589c953
+      - subnet-031022a6aab9b9e70
+      - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
     tags:
@@ -145,6 +153,7 @@ managedNodeGroups:
         autoScaler: true
         certManager: true
         efs: true
+        ebs: true
         albIngress: true
         xRay: true
         cloudWatch: true
@@ -156,6 +165,14 @@ managedNodeGroups:
 eksctl create nodegroup -f spot-nodegroup.yaml
 ```
 
+### 2、通过EC2控制台Spot服务界面确认Spot启动正常
+
+进入EC2控制台，点击左侧菜单的`Spot requests`，即可看到正常启动了三台EC2作为Nodegroups节点组。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/spot/spot-02.png)
+
+### 3、通过kubectl查询新的Spot的Nodegroup
+
 执行如下命令查看nodegroup是否正常。请注意修改cluster名称与当前集群名称要匹配。
 
 ```
@@ -165,9 +182,11 @@ eksctl get nodegroup --cluster eksworkshop
 返回结果可以看到原来的和新创建的两个nodegroup如下。
 
 ```
-CLUSTER		NODEGROUP	STATUS	CREATED			MIN SIZE	MAX SIZE	DESIRED CAPACITY	INSTANCE TYPE				IMAGE ID	ASG NAME						TYPE
-eksworkshop	managed-ng	ACTIVE	2022-10-14T08:25:52Z	3		6		3			m5.2xlarge				AL2_x86_64	eks-managed-ng-32c1eacc-bd74-6172-37c3-d9a66afa8512	managed
-eksworkshop	spot1		ACTIVE	2022-10-14T09:39:29Z	3		6		3			m4.2xlarge,m5.2xlarge,m5d.2xlarge	AL2_x86_64	eks-spot1-88c1eaee-6f0f-0da3-a6a4-3b2792ee447a		managed
+
+CLUSTER		NODEGROUP	STATUS	CREATED			MIN SIZE	MAX SIZE	DESIRED CAPACITY	INSTANCE TYPE		IMAGE ID	ASG NAME					TYPE
+eksworkshop	newng3		ACTIVE	2023-06-21T10:43:16Z	3		6		3			t4g.xlarge		AL2_ARM_64	eks-newng3-b4c46ec6-8f27-d27d-1eb7-457a5b080a66	managed
+eksworkshop	spot1		ACTIVE	2023-07-08T08:03:15Z	3		6		3			m6g.2xlarge,t4g.2xlarge	AL2_ARM_64	eks-spot1-c6c49a43-5b81-41a9-bc12-c01ed251594e	managed
+
 ```
 
 查看节点的创建时间：
@@ -179,18 +198,18 @@ kubectl get nodes --sort-by=.metadata.creationTimestamp
 返回信息类似如下：
 
 ```
-NAME                                               STATUS   ROLES    AGE     VERSION
-ip-192-168-73-49.ap-southeast-1.compute.internal   Ready    <none>   3h30m   v1.23.9-eks-ba74326
-ip-192-168-3-225.ap-southeast-1.compute.internal   Ready    <none>   3h30m   v1.23.9-eks-ba74326
-ip-192-168-53-33.ap-southeast-1.compute.internal   Ready    <none>   3h30m   v1.23.9-eks-ba74326
-ip-192-168-27-19.ap-southeast-1.compute.internal   Ready    <none>   136m    v1.23.9-eks-ba74326
-ip-192-168-46-69.ap-southeast-1.compute.internal   Ready    <none>   136m    v1.23.9-eks-ba74326
-ip-192-168-65-14.ap-southeast-1.compute.internal   Ready    <none>   136m    v1.23.9-eks-ba74326
+NAME                                               STATUS   ROLES    AGE   VERSION
+ip-172-31-55-131.ap-southeast-1.compute.internal   Ready    <none>   16d   v1.27.1-eks-2f008fe
+ip-172-31-75-60.ap-southeast-1.compute.internal    Ready    <none>   16d   v1.27.1-eks-2f008fe
+ip-172-31-82-248.ap-southeast-1.compute.internal   Ready    <none>   16d   v1.27.1-eks-2f008fe
+ip-172-31-77-169.ap-southeast-1.compute.internal   Ready    <none>   11m   v1.27.1-eks-2f008fe
+ip-172-31-94-71.ap-southeast-1.compute.internal    Ready    <none>   11m   v1.27.1-eks-2f008fe
+ip-172-31-51-112.ap-southeast-1.compute.internal   Ready    <none>   11m   v1.27.1-eks-2f008fe
 ```
 
-### 3、查看当前集群的On-Demand节点
+### 4、分别按On-Demand类型（含RI）和Spot类型查看当前集群的Nodegroup
 
-执行如下命令：
+查看On-Demand类型（含RI）的Nodegroup，执行如下命令：
 
 ```
 kubectl get nodes \
@@ -202,14 +221,13 @@ kubectl get nodes \
 
 ```
 NAME                                               STATUS   ROLES    AGE   VERSION               CAPACITYTYPE
-ip-192-168-3-225.ap-southeast-1.compute.internal   Ready    <none>   68m   v1.23.9-eks-ba74326   ON_DEMAND
-ip-192-168-53-33.ap-southeast-1.compute.internal   Ready    <none>   68m   v1.23.9-eks-ba74326   ON_DEMAND
-ip-192-168-73-49.ap-southeast-1.compute.internal   Ready    <none>   68m   v1.23.9-eks-ba74326   ON_DEMAND
+ip-172-31-55-131.ap-southeast-1.compute.internal   Ready    <none>   16d   v1.27.1-eks-2f008fe   ON_DEMAND
+ip-172-31-75-60.ap-southeast-1.compute.internal    Ready    <none>   16d   v1.27.1-eks-2f008fe   ON_DEMAND
+ip-172-31-82-248.ap-southeast-1.compute.internal   Ready    <none>   16d   v1.27.1-eks-2f008fe   ON_DEMAND
+
 ```
 
-### 4、查看当前集群的Spot节点
-
-查看节点类型是Spot的Node：
+查看节点类型是Spot的Nodegroup：
 
 ```
 kubectl get nodes \
@@ -220,17 +238,31 @@ kubectl get nodes \
 返回结果如下：
 
 ```
-NAME                                               STATUS   ROLES    AGE    VERSION               CAPACITYTYPE
-ip-192-168-27-19.ap-southeast-1.compute.internal   Ready    <none>   141m   v1.23.9-eks-ba74326   SPOT
-ip-192-168-46-69.ap-southeast-1.compute.internal   Ready    <none>   141m   v1.23.9-eks-ba74326   SPOT
-ip-192-168-65-14.ap-southeast-1.compute.internal   Ready    <none>   141m   v1.23.9-eks-ba74326   SPOT
+NAME                                               STATUS   ROLES    AGE   VERSION               CAPACITYTYPE
+ip-172-31-51-112.ap-southeast-1.compute.internal   Ready    <none>   12m   v1.27.1-eks-2f008fe   SPOT
+ip-172-31-77-169.ap-southeast-1.compute.internal   Ready    <none>   12m   v1.27.1-eks-2f008fe   SPOT
+ip-172-31-94-71.ap-southeast-1.compute.internal    Ready    <none>   12m   v1.27.1-eks-2f008fe   SPOT
 ```
 
 ## 三、部署应用分别运行在Spot和On-demand机型上
 
-### 1、使用Spot的yaml配置文件
+### 1、在配置文件中指定使用On-Demand或者Spot类型的Nodegroup的写法
 
-在和Container配置平级的位置，增加如下一段配置，表示优先使用Spot节点运行服务：
+在和Container配置平级的位置，增加如下一段配置，表示使用On-demand节点运行服务：
+
+```
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: eks.amazonaws.com/capacityType
+                operator: In
+                values:
+                - ON_DEMAND
+```
+
+在和Container配置平级的位置，增加如下一段配置，表示使用Spot节点运行服务：
 
 ```
       affinity:
@@ -250,40 +282,36 @@ ip-192-168-65-14.ap-southeast-1.compute.internal   Ready    <none>   141m   v1.2
         effect: "PreferNoSchedule"
 ```
 
-在和Container配置平级的位置，增加如下一段配置，表示强制使用On-demand节点运行服务：
+### 2、使用Spot节点启动应用的示例（基于ALB Ingress）
 
 ```
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: eks.amazonaws.com/capacityType
-                operator: In
-                values:
-                - ON_DEMAND
-```
-
-### 2、使用Spot的yaml文件示例
-
-```
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spot-alb-ingress
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-nginx-od
-  labels:
-    app: demo-nginx-od
+  namespace: spot-alb-ingress
+  name:  spot-alb-ingress
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      app: demo-nginx-od
+      app.kubernetes.io/name: spot-alb-ingress
+  replicas: 3
   template:
     metadata:
       labels:
-        app: demo-nginx-od
+        app.kubernetes.io/name: spot-alb-ingress
     spec:
+      containers:
+      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        imagePullPolicy: Always
+        name: spot-alb-ingress
+        ports:
+        - containerPort: 80
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -299,92 +327,65 @@ spec:
         operator: "Equal"
         value: "true"
         effect: "PreferNoSchedule"
-      containers:
-      - name: demo-nginx-od
-        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
-        ports:
-        - containerPort: 80
-        resources:
-          limits:
-            cpu: "1"
-            memory: 2G
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: "demo-nginx-od"
-  annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  namespace: spot-alb-ingress
+  name: spot-alb-ingress
 spec:
-  selector:
-    app: demo-nginx-od
-  type: LoadBalancer
   ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 80
-```
-
-### 3、使用On-demand的yaml文件示例
-
-```
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-nginx-spot
-  labels:
-    app: demo-nginx-spot
-spec:
-  replicas: 3
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  type: NodePort
   selector:
-    matchLabels:
-      app: demo-nginx-spot
-  template:
-    metadata:
-      labels:
-        app: demo-nginx-spot
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: eks.amazonaws.com/capacityType
-                operator: In
-                values:
-                - ON_DEMAND
-      containers:
-      - name: demo-nginx-spot
-        image: public.ecr.aws/nginx/nginx:1.21.6-alpine
-        ports:
-        - containerPort: 80
-        resources:
-          limits:
-            cpu: "1"
-            memory: 2G
+    app.kubernetes.io/name: spot-alb-ingress
 ---
-apiVersion: v1
-kind: Service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: "demo-nginx-spot"
+  namespace: spot-alb-ingress
+  name: spot-alb-ingress
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
 spec:
-  selector:
-    app: demo-nginx-spot
-  type: LoadBalancer
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 80
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: spot-alb-ingress
+              port:
+                number: 80
 ```
 
-## 三、查看在On-demand和Spot节点上的Pod
+### 3、确认应用启动成功
 
-### 1、查看Spot节点上的Pod
+确认ALB Ingress运行正常，使用如下命令查看Ingress：
 
-执行如下命令：
+```
+kubectl get ingress -n spot-alb-ingress
+```
+
+返回结果如下：
+
+```
+NAME               CLASS   HOSTS   ADDRESS                                                                       PORTS   AGE
+spot-alb-ingress   alb     *       k8s-spotalbi-spotalbi-61ad5ed1a2-234183738.ap-southeast-1.elb.amazonaws.com   80      4m23s
+```
+
+使用CURL等工具或者网页浏览器访问这个ALB的入口，即可看到应用运行正常。
+
+### 4、查看运行在Spot节点组上的Pod
+
+前一步确认了ALB Ingress访问应用正常，现在我们来确认应用是运行在Spot节点组上。
+
+执行如下命令查看运行在Spot节点组上的Pod：
 
 ```
  for n in $(kubectl get nodes -l eks.amazonaws.com/capacityType=SPOT --no-headers | cut -d " " -f1); do echo "Pods on instance ${n}:";kubectl get pods --all-namespaces  --no-headers --field-selector spec.nodeName=${n} ; echo ; done
@@ -393,25 +394,33 @@ spec:
 返回信息如下：
 
 ```
-Pods on instance ip-192-168-27-19.ap-southeast-1.compute.internal:
-default       demo-nginx-spot-79676dcc79-2mlv8   1/1   Running   0             117s
-kube-system   aws-node-pdcx2                     1/1   Running   1 (11h ago)   2d3h
-kube-system   kube-proxy-j5xdm                   1/1   Running   1 (11h ago)   2d3h
+Pods on instance ip-172-31-51-112.ap-southeast-1.compute.internal:
+amazon-cloudwatch   cloudwatch-agent-sglml              1/1   Running   0     34m
+amazon-cloudwatch   fluent-bit-qvxmb                    1/1   Running   0     35m
+kube-system         aws-node-dz497                      1/1   Running   0     35m
+kube-system         kube-proxy-gx7ph                    1/1   Running   0     35m
+spot-alb-ingress    spot-alb-ingress-567b7475b5-lqv8m   1/1   Running   0     2m44s
 
-Pods on instance ip-192-168-46-69.ap-southeast-1.compute.internal:
-default       demo-nginx-spot-79676dcc79-gpk4z   1/1   Running   0             118s
-kube-system   aws-node-nmz6k                     1/1   Running   1 (11h ago)   2d3h
-kube-system   kube-proxy-qpb6f                   1/1   Running   1 (11h ago)   2d3h
+Pods on instance ip-172-31-77-169.ap-southeast-1.compute.internal:
+amazon-cloudwatch   cloudwatch-agent-bzk45              1/1   Running   0     34m
+amazon-cloudwatch   fluent-bit-lcqn2                    1/1   Running   0     35m
+kube-system         aws-node-xjtsr                      1/1   Running   0     35m
+kube-system         kube-proxy-6np9n                    1/1   Running   0     35m
+spot-alb-ingress    spot-alb-ingress-567b7475b5-jm82t   1/1   Running   0     2m45s
 
-Pods on instance ip-192-168-65-14.ap-southeast-1.compute.internal:
-default       demo-nginx-spot-79676dcc79-bllnb   1/1   Running   0             119s
-kube-system   aws-node-vbl6f                     1/1   Running   1 (11h ago)   2d3h
-kube-system   kube-proxy-45jfj                   1/1   Running   1 (11h ago)   2d3h
+Pods on instance ip-172-31-94-71.ap-southeast-1.compute.internal:
+amazon-cloudwatch   cloudwatch-agent-m8wtg              1/1   Running   0     34m
+amazon-cloudwatch   fluent-bit-2wsxh                    1/1   Running   0     35m
+kube-system         aws-node-z8dql                      1/1   Running   0     35m
+kube-system         kube-proxy-q4n84                    1/1   Running   0     35m
+spot-alb-ingress    spot-alb-ingress-567b7475b5-zvjrt   1/1   Running   0     2m46s
 ```
 
-### 2、查看On-demand节点上的Pod
+可以看到在所有Spot类型的Nodegroup下，Namespaces名为`spot-alb-ingress`下有Pod运行中。与预期结果一致。
 
-执行如下命令：
+### 5、查看On-demand节点组上的Pod
+
+执行如下命令查看运行在On-demand节点组上的Pod：
 
 ```
  for n in $(kubectl get nodes -l eks.amazonaws.com/capacityType=ON_DEMAND --no-headers | cut -d " " -f1); do echo "Pods on instance ${n}:";kubectl get pods --all-namespaces  --no-headers --field-selector spec.nodeName=${n} ; echo ; done
@@ -420,25 +429,33 @@ kube-system   kube-proxy-45jfj                   1/1   Running   1 (11h ago)   2
 返回信息如下：
 
 ```
-Pods on instance ip-192-168-3-225.ap-southeast-1.compute.internal:
-default       demo-nginx-on-demand-5549798b4c-ftwq2   1/1   Running   0             3m5s
-kube-system   aws-node-lgwn5                          1/1   Running   1 (11h ago)   2d4h
-kube-system   kube-proxy-kvqd9                        1/1   Running   1 (11h ago)   2d4h
+Pods on instance ip-172-31-55-131.ap-southeast-1.compute.internal:
+amazon-cloudwatch   cloudwatch-agent-6rhd5                          1/1   Running   3 (10d ago)   16d
+amazon-cloudwatch   fluent-bit-vl9wq                                1/1   Running   3 (10d ago)   16d
+kube-system         aws-load-balancer-controller-6c94cf8d47-629gk   1/1   Running   2 (10d ago)   16d
+kube-system         aws-node-xxgmt                                  1/1   Running   3 (10d ago)   16d
+kube-system         coredns-79599dd674-gd9dz                        1/1   Running   2 (10d ago)   16d
+kube-system         kube-proxy-q8cn8                                1/1   Running   3 (10d ago)   16d
 
-Pods on instance ip-192-168-53-33.ap-southeast-1.compute.internal:
-default       demo-nginx-on-demand-5549798b4c-zkns8   1/1   Running   0             3m6s
-kube-system   aws-node-jw6t2                          1/1   Running   1 (11h ago)   2d4h
-kube-system   kube-proxy-6ncrr                        1/1   Running   1 (11h ago)   2d4h
+Pods on instance ip-172-31-75-60.ap-southeast-1.compute.internal:
+amazon-cloudwatch   cloudwatch-agent-hz7fk     1/1   Running   3 (10d ago)   16d
+amazon-cloudwatch   fluent-bit-9tltx           1/1   Running   3 (10d ago)   16d
+kube-system         aws-node-86zlr             1/1   Running   3 (10d ago)   16d
+kube-system         coredns-79599dd674-56fgx   1/1   Running   2 (10d ago)   16d
+kube-system         kube-proxy-kxpk7           1/1   Running   3 (10d ago)   16d
 
-Pods on instance ip-192-168-73-49.ap-southeast-1.compute.internal:
-default       demo-nginx-on-demand-5549798b4c-nbxf8   1/1   Running   0             3m7s
-kube-system   aws-node-7wh29                          1/1   Running   1 (11h ago)   2d4h
-kube-system   coredns-6d8cc4bb5d-bfmmb                1/1   Running   1 (11h ago)   2d5h
-kube-system   coredns-6d8cc4bb5d-fhj8p                1/1   Running   1 (11h ago)   2d5h
-kube-system   kube-proxy-2wm22                        1/1   Running   1 (11h ago)   2d4h
+Pods on instance ip-172-31-82-248.ap-southeast-1.compute.internal:
+amazon-cloudwatch   cloudwatch-agent-zfpsv                          1/1   Running   3 (10d ago)   16d
+amazon-cloudwatch   fluent-bit-bk92r                                1/1   Running   3 (10d ago)   16d
+kube-system         aws-load-balancer-controller-6c94cf8d47-vdk7k   1/1   Running   2 (10d ago)   16d
+kube-system         aws-node-6bmxr                                  1/1   Running   3 (10d ago)   16d
+kube-system         kube-proxy-7v5b6                                1/1   Running   3 (10d ago)   16d
 ```
+可看到On-Demand节点组上没有刚才启动的Pod，因此确认了本应用的Pod都运行在Spot节点组上。
 
-## 参考文档
+至此实验结束。
+
+## 四、参考文档
 
 Spot最佳实践：
 
