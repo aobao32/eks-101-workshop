@@ -284,6 +284,8 @@ ip-172-31-94-71.ap-southeast-1.compute.internal    Ready    <none>   12m   v1.27
 
 ### 2、使用Spot节点启动应用的示例（基于ALB Ingress）
 
+编辑如下配置文件，保存为`SPOT-ALB-ingress.yaml`。
+
 ```
 ---
 apiVersion: v1
@@ -363,6 +365,14 @@ spec:
               port:
                 number: 80
 ```
+
+执行如下命令启动服务：
+
+```
+kubectl apply -f SPOT-ALB-ingress.yaml
+```
+
+启动完毕。
 
 ### 3、确认应用启动成功
 
