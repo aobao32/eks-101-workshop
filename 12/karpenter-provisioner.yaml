@@ -1,0 +1,38 @@
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  labels:
+    intent: apps
+  requirements:
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["spot"]
+    - key: karpenter.k8s.aws/instance-size
+      operator: NotIn
+      values: [nano, micro, small, medium, large]
+    - key: kubernetes.io/arch
+      operator: In
+      values: ["arm64"]
+    - key: node.kubernetes.io/instance-type
+      operator: In
+      values: ["m6g.xlarge", "r6g.xlarge", "c6g.2xlarge"]
+  limits:
+    resources:
+      cpu: 1000
+      memory: 1000Gi
+  providerRef:
+    name: default
+  consolidation: 
+    enabled: true
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    karpenter.sh/discovery: eksworkshop
+  securityGroupSelector:
+    karpenter.sh/discovery: eksworkshop

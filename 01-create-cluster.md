@@ -22,7 +22,7 @@ EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
 ### 1、Windows下安装eksctl和kubectl工具
 
-eksctl的安装可通过choco包管理工具进行。先使用管理员权限打开powershell，执行：
+eksctl的安装可通过choco包管理工具进行。先使用管理员权限打开powershell，执行如下命令安装好choco工具：
 
 ```
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
@@ -31,18 +31,10 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 即可安装好choco。然后在cmd下用管理员权限安装eksctl和jq工具（本步骤需要管理员权限）：
 
 ```
-choco install -y eksctl jq curl wget vim 7zip
+choco install -y eksctl kubernetes-cli kubernetes-helm k9s jq curl wget vim 7zip
 ```
 
-此外很多日常软件都可以后续执行`choco install`安装。
-
-下载Windows版本的kubectl工具：
-
-```
-curl.exe -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/windows/amd64/kubectl.exe
-```
-
-下载后将`kubectl.exe`放入系统PATH目录，例如`C:\Windows\system32\`，之后即可在任意下执行`kubectl`命令。
+即可安装好所有EKS管理工具。此外很多日常软件都可以后续执行`choco install`安装。
 
 ### 2、Linux下安装eksctl和kubectl工具
 
