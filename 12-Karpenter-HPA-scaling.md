@@ -897,12 +897,28 @@ kubectl scale deployment nginx-deployment -n nlb-app-karpenter --replicas 1
 
 ## 五、部署HPA实现应用Pod的缩放
 
+前文通过Karpenter实现了Node根据资源剩余情况的缩放，接下来使用HPA实现根据访问压力对Pod数量的缩放。
+
 ### 1、部署Metrics Server
 
 执行以下命令部署metrics server。
 
 ```
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+返回结果如下：
+
+```
+serviceaccount/metrics-server created
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+service/metrics-server created
+deployment.apps/metrics-server created
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
 ```
 
 ### 2、确认Metrics Server运行正常
@@ -919,7 +935,7 @@ kubectl get apiservice v1beta1.metrics.k8s.io -o json | jq '.status'
 {
   "conditions": [
     {
-      "lastTransitionTime": "2022-10-18T06:52:14Z",
+      "lastTransitionTime": "2023-07-12T14:42:59Z",
       "message": "all checks passed",
       "reason": "Passed",
       "status": "True",
@@ -931,40 +947,100 @@ kubectl get apiservice v1beta1.metrics.k8s.io -o json | jq '.status'
 
 如果没有获得以上结果，那么需要继续等待启动完成。
 
+### 3、验证Metrics Server获取数据正常。
+
+执行如下命令查看所有Pod负载。
+
+```
+kubectl top node
+```
+
+返回如下信息。
+
+```
+NAME                                               CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+ip-172-31-55-131.ap-southeast-1.compute.internal   43m          1%     559Mi           3%        
+ip-172-31-75-60.ap-southeast-1.compute.internal    44m          1%     610Mi           4%        
+ip-172-31-82-248.ap-southeast-1.compute.internal   34m          0%     714Mi           4%        
+ip-172-31-93-53.ap-southeast-1.compute.internal    25m          0%     453Mi           3%        
+```
+
+执行如下命令查看所有Namespaces中的Pod信息。
+
+```
+kubectl top pod -A
+```
+
+返回结果较长，这里不再赘述。
+
 ### 3、配置性能监控并设置HPA弹性阈值
 
 执行如下命令。其中`min=1`表示最小1个pod，`max=10`表示最大10个pod，`--cpu-percent=30`表示CPU达到30%的阈值后触发扩容。此外如果使用了其他的部署名称，还需要替换命令中的deployment名称：
 
 ```
-kubectl autoscale deployment demo-nginx-nlb-karpenter --cpu-percent=30 --min=1 --max=10
+kubectl autoscale deployment nginx-deployment -n nlb-app-karpenter --cpu-percent=50 --min=3 --max=12
+```
+
+返回信息如下：
+
+```
+horizontalpodautoscaler.autoscaling/nginx-deployment autoscaled
 ```
 
 配置完毕后，可通过如下命令查看HPA的信息：
 
 ```
-kubectl get hpa
+kubectl get hpa -n nlb-app-karpenter
 ```
 
-## 六、测试HPA扩展
+返回信息如下：
 
-### 1、使用额外的EC2作为外部的负载生成器
+```                          23:36:03
+NAME               REFERENCE                     TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+nginx-deployment   Deployment/nginx-deployment   0%/50%    3         12        3          117s 
+```
 
-负载生成器可以使用普通的EC2进行，只要能部署apache benchmark工具即可。也可以在本VPC之外的其他位置，通过网络访问NLB即可。压力测试建议不要跨region，在本region获得最大压力效果。
+在服务刚启动功能时候，由于没有抓取到足够数据，在`TARGETS`这一列可能显示`Unknown`。过几分钟后即可正常显示资源实际使用情况。如果没打压，且当前应用是nginx这种不占用资源的应用，这里一般显示当前`0%`。
 
-本例中，建议创建一台EC2，使用m5或者c5.2xlarge规格，系统选择为Amazon Linux 2操作系统。我们将使用Apache Benchmark（简称ab）发起压力测试。执行如下命令安装客户端：
+至此HPA配置成功。
+
+## 六、对应用施压测试HPA调整Replica实现Pod扩展
+
+### 1、启动额外的EC2作为外部的负载生成器
+
+负载生成器可以使用普通的EC2进行，只要能部署apache benchmark工具即可。考虑到多可用区多AZ分布的问题，建议在本VPC之外的其他VPC，新部署一台m6g.xlarge规格的EC2，系统选择为Amazon Linux 2023操作系统。压力测试建议不要跨region，在本region获得最大压力效果。
+
+本例中，将使用Apache Benchmark（简称ab）发起压力测试。执行如下命令安装客户端：
 
 ```
 yum update -y
-yum install httpd
+yum install httpd -y
 ```
 
-安装完成后，执行如下命令生成压力，请替换访问地址为上一步的NLB地址
+### 2、查询施压的入口
+
+执行如下命令查看访问入口：
+
+```
+kubectl get service -n nlb-app-karpenter
+```
+
+由此可获得NLB入口。
+
+```
+NAME            TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE
+service-nginx   LoadBalancer   10.50.0.131   k8s-nlbappka-servicen-1b114eb166-77c1568fcaa70b7e.elb.ap-southeast-1.amazonaws.com   80:32371/TCP   13m
+```
+
+### 3、发起负载
+
+安装完成后，执行如下命令生成压力。访问地址为上一步的NLB地址：
 
 ```
 ab -n 1000000 -c 100 http://a44c5e6ec923a442a8204ae6eb10dcf7-a98659c1108f3882.elb.ap-southeast-1.amazonaws.com/
 ```
 
-### 2、观察压力导致的扩容
+### 4、观察压力导致的HPA对Replica的调整和Pod扩容
 
 使用如下命令观察Metrics Server、CPU负载以及Deployment的Replica的数量：
 
@@ -979,6 +1055,8 @@ kubectl get hpa -w
 ```
 kubectl get pod -l app=demo-nginx-nlb-karpenter
 ```
+
+### 5、观察Pod增加导致的Node资源池用完然后引起的Node扩容
 
 使用如下命令观察Karpenter扩充的Spot节点：
 
