@@ -123,7 +123,7 @@ service-nginx   LoadBalancer   10.50.0.161   k8s-nlbappon-servicen-e3100b48b9-34
 kubectl delete -f demo-nginx-nlb-on-demand.yaml
 ```
 
-## 三、部署Karpenter
+## 三、部署Karpenter实现Node缩放
 
 ### 1、设置环境变量
 
@@ -622,11 +622,44 @@ awsnodetemplate.karpenter.k8s.aws/default created
 
 至此Karpenter部署完成。
 
-## 四、测试Karpenter扩展
+## 四、测试Karpenter扩展新的Node
 
-### 1、部署测试应用
+### 1、查看集群现有剩余容量并规划扩展
 
-构建如下测试应用，保存为`demo-nginx-nlb-karpenter.yaml`文件：
+在启动新的集群之前，我们查看下现有集群的剩余容量。由于还没有安装HPA，因此集群还没有Metric API被部署，这个时候`kubectl top node`等命令还暂时不可用。此时我们使用如下命令来检查资源情况：
+
+```
+kubectl describe node 
+```
+
+这个命令会分别列出当前所有节点的资源使用情况。例如如下信息就是某个节点剩余资源情况：
+
+```
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests     Limits
+  --------           --------     ------
+  cpu                1825m (46%)  1200m (30%)
+  memory             1324Mi (8%)  1424Mi (9%)
+  ephemeral-storage  0 (0%)       0 (0%)
+  hugepages-1Gi      0 (0%)       0 (0%)
+  hugepages-2Mi      0 (0%)       0 (0%)
+  hugepages-32Mi     0 (0%)       0 (0%)
+  hugepages-64Ki     0 (0%)       0 (0%)
+Events:              <none>
+```
+
+由于`kubectl top node`是按节点依次输出的，因此向上滚动页面课查看前几个节点的输出信息。
+
+根据以上结果可以看出，相对CPU资源不足。因为当前测试Nodegroup是`t4g.xlarge`，只有4个vCPU，也就是每个节点CPU资源是4000。以当前节点为例，Request的vCPU已经达到1825即折算1.825个vCPU。所以再增加几个容器，每个容器都Request申请2个vCPU，就会触发扩容了。
+
+现在我们来验证以上逻辑。
+
+### 2、部署测试应用
+
+为了明显的模拟扩展，用于应用将分配较多的资源。一般场景一个nginx只需要1GB内存，但我们这里故意分配2vCPU/4GB，用于明显的资源消耗以更早触发扩容。这个应用起步时候设置replica=1，即只创建1个Pod。
+
+构建如下配置，保存为`demo-nginx-nlb-karpenter.yaml`文件：
 
 ```
 ---
@@ -644,7 +677,7 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx
-  replicas: 3
+  replicas: 1
   template:
     metadata:
       labels:
@@ -658,11 +691,11 @@ spec:
         - containerPort: 80
         resources:
           limits:
-            cpu: "1"
-            memory: 2G
+            cpu: "2"
+            memory: 4G
           requests:
-            cpu: "1"
-            memory: 2G
+            cpu: "2"
+            memory: 4G
 ---
 apiVersion: v1
 kind: Service
@@ -689,21 +722,19 @@ spec:
 kubectl apply -f demo-nginx-nlb-karpenter.yaml
 ```
 
-### 2、查看应用
+### 3、查看应用运行正常
 
-这一步应用的replica设置为3，因此可看到有3个Pod。
+执行如下命令查看已经拉起的Pod。因为replica设置为1，因此可看到有1个Pod。
 
 ```
 kubectl get pods -n nlb-app-karpenter
 ```
 
-返回结果如下，3个Pod与预期一致。
+返回1个Pod与预期一致。
 
 ```
-NAME                                READY   STATUS    RESTARTS   AGE
-nginx-deployment-64c7f7d597-298xm   1/1     Running   0          7m30s
-nginx-deployment-64c7f7d597-glz2c   1/1     Running   0          7m30s
-nginx-deployment-64c7f7d597-vcccq   1/1     Running   0          7m30s
+NAME                               READY   STATUS    RESTARTS   AGE
+nginx-deployment-75d9ffff7-7pvlg   1/1     Running   0          49s
 ```
 
 执行如下命令查看访问入口：
@@ -716,19 +747,49 @@ kubectl get service -n nlb-app-karpenter
 
 ```
 NAME            TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE
-service-nginx   LoadBalancer   10.50.0.134   k8s-nlbappka-servicen-5fb53d7320-7d463ab8bae89927.elb.ap-southeast-1.amazonaws.com   80:30425/TCP   5m46s
+service-nginx   LoadBalancer   10.50.0.131   k8s-nlbappka-servicen-1b114eb166-77c1568fcaa70b7e.elb.ap-southeast-1.amazonaws.com   80:32371/TCP   13m
 ```
 
-使用curl或者浏览器访问NLB地址，可看到访问成功。
+使用curl或者浏览器访问NLB地址，可看到访问成功。由此表示Pod启动正常。
 
-### 3、修改部署扩容
+### 4、查看Node剩余资源
 
-为了触发Node的库容，需要将应用的Pod数量从3扩容到9或者12，即明显超出现有Nodegroup的资源，如果只是从3扩展到4，因为生育资源足够，将不会生成新的Node。
+再次执行命令`kubectl describe node`分别打出所有Node的资源情况。找到上一步启动的那个Pod所在的节点，可看到信息如下（部分输出节选）
+
+```
+Non-terminated Pods:          (6 in total)
+  Namespace                   Name                                             CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                                             ------------  ----------  ---------------  -------------  ---
+  amazon-cloudwatch           cloudwatch-agent-zfpsv                           200m (5%)     200m (5%)   200Mi (1%)       200Mi (1%)     21d
+  amazon-cloudwatch           fluent-bit-bk92r                                 500m (12%)    0 (0%)      100Mi (0%)       200Mi (1%)     21d
+  karpenter                   karpenter-7574749b8f-pqd4x                       1 (25%)       1 (25%)     1Gi (6%)         1Gi (6%)       3h45m
+  kube-system                 aws-load-balancer-controller-6c94cf8d47-vdk7k    0 (0%)        0 (0%)      0 (0%)           0 (0%)         21d
+  kube-system                 aws-node-6bmxr                                   25m (0%)      0 (0%)      0 (0%)           0 (0%)         21d
+  kube-system                 kube-proxy-7v5b6                                 100m (2%)     0 (0%)      0 (0%)           0 (0%)         21d
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests     Limits
+  --------           --------     ------
+  cpu                1825m (46%)  1200m (30%)
+  memory             1324Mi (8%)  1424Mi (9%)
+  ephemeral-storage  0 (0%)       0 (0%)
+  hugepages-1Gi      0 (0%)       0 (0%)
+  hugepages-2Mi      0 (0%)       0 (0%)
+  hugepages-32Mi     0 (0%)       0 (0%)
+  hugepages-64Ki     0 (0%)       0 (0%)
+Events:              <none>          
+```
+
+这部分返回信息里，可看到上一步启动的名为`nlb-app-karpenter`的应用的Pod就运行在本机。对比前文步骤，其Node节点CPU资源使用小于50%，目前已经来到了`2925m (74%)`。由于测试Node的配置`t4g.xlarge`只有4个vCPU，也就是换算为`4000m`，因此这里看到只需要再增加一个Pod，即可触发扩容。
+
+考虑到一共有3个Node，因此为了用尽所有资源触发扩容，我们将应用的repica从1直接修改到6，以确保现有Nodegroup所有Node资源都将不足，从而触发扩容。
+
+### 5、修改部署扩容
 
 执行如下命令：
 
 ```
-kubectl scale deployment nginx-deployment -n nlb-app-karpenter --replicas 12
+kubectl scale deployment nginx-deployment -n nlb-app-karpenter --replicas 6
 ```
 
 返回如下：
@@ -737,9 +798,27 @@ kubectl scale deployment nginx-deployment -n nlb-app-karpenter --replicas 12
 deployment.apps/nginx-deployment scaled
 ```
 
-### 4、查看Karpenter扩展结果
+等待1～2分钟时间让Karpenter拉起新的Node，然后继续下一步操作。
 
-在执行了上一步扩容后去查看Pod和Node，可以发现Karpenter已经对其进行了扩展。
+### 6、查看Karpenter扩展结果
+
+执行如下命令查看调整Replica导致的Pod扩展是否生效：
+
+```
+kubectl get pod -n nlb-app-karpenter
+```
+
+可看到返回结果是6个Pod，表示扩展生效。
+
+```
+NAME                               READY   STATUS              RESTARTS   AGE
+nginx-deployment-75d9ffff7-6kjz5   0/1     ContainerCreating   0          63s
+nginx-deployment-75d9ffff7-7pvlg   1/1     Running             0          18m
+nginx-deployment-75d9ffff7-fgcdf   1/1     Running             0          63s
+nginx-deployment-75d9ffff7-fsq7d   0/1     ContainerCreating   0          63s
+nginx-deployment-75d9ffff7-g4gjx   0/1     ContainerCreating   0          63s
+nginx-deployment-75d9ffff7-xmhbr   0/1     ContainerCreating   0          63s
+```
 
 执行如下命令可通过限定特定的标签，查看Karpenter扩容出来的Spot节点Node：
 
@@ -747,46 +826,76 @@ deployment.apps/nginx-deployment scaled
 kubectl get node -l karpenter.sh/capacity-type=spot
 ```
 
-### 5、查看Karpenter日志
-
-执行如下命令可查看Karpenter控制器的日子：
+返回结果如下：
 
 ```
-kubectl logs -f deployment/karpenter -n karpenter controller
+NAME                                               STATUS   ROLES    AGE   VERSION
+ip-172-31-56-118.ap-southeast-1.compute.internal   Ready    <none>   49s   v1.27.1-eks-2f008fe
+ip-172-31-86-165.ap-southeast-1.compute.internal   Ready    <none>   46s   v1.27.1-eks-2f008fe
 ```
 
-执行如下命令，可查看Karpenter控制器的配置，包括日志级别等信息：
+以上结果表示新拉起了两台Spot计费模式的节点，用于运行扩容出来的Pod。
+
+### 7、查看Karpenter扩展过程日志
+
+执行如下命令可查看Karpenter扩展的日志：
 
 ```
-kubectl describe configmap config-logging -n karpenter
+kubectl logs -f -n karpenter -c controller -l app.kubernetes.io/name=karpenter
 ```
 
-执行如下命令，可调整Karpenter日志级别：
+返回结果如下：
 
 ```
-kubectl patch configmap config-logging -n karpenter --patch '{"data":{"loglevel.controller":"debug"}}'
+2023-07-12T14:18:48.166Z	DEBUG	controller.provisioner	15 out of 527 instance types were excluded because they would breach provisioner limits	{"commit": "61cc8f7-dirty", "provisioner": "default"}
+2023-07-12T14:18:48.178Z	DEBUG	controller.provisioner	15 out of 527 instance types were excluded because they would breach provisioner limits	{"commit": "61cc8f7-dirty", "provisioner": "default"}
+2023-07-12T14:18:48.188Z	INFO	controller.provisioner	found provisionable pod(s)	{"commit": "61cc8f7-dirty", "pods": 4}
+2023-07-12T14:18:48.188Z	INFO	controller.provisioner	computed new machine(s) to fit pod(s)	{"commit": "61cc8f7-dirty", "machines": 2, "pods": 4}
+2023-07-12T14:18:48.199Z	INFO	controller.provisioner	created machine	{"commit": "61cc8f7-dirty", "provisioner": "default", "requests": {"cpu":"6825m","memory":"12025950Ki","pods":"7"}, "instance-types": "c6g.2xlarge"}
+2023-07-12T14:18:48.200Z	INFO	controller.provisioner	created machine	{"commit": "61cc8f7-dirty", "provisioner": "default", "requests": {"cpu":"2825m","memory":"4213450Ki","pods":"5"}, "instance-types": "c6g.2xlarge, m6g.xlarge, r6g.xlarge"}
+2023-07-12T14:18:48.395Z	DEBUG	controller.machine.lifecycle	discovered subnets	{"commit": "61cc8f7-dirty", "machine": "default-s4ltt", "provisioner": "default", "subnets": ["subnet-04a7c6e7e1589c953 (ap-southeast-1a)", "subnet-031022a6aab9b9e70 (ap-southeast-1b)", "subnet-0eaf9054aa6daa68e (ap-southeast-1c)"]}
+2023-07-12T14:18:49.192Z	DEBUG	controller.machine.lifecycle	created launch template	{"commit": "61cc8f7-dirty", "machine": "default-s4ltt", "provisioner": "default", "launch-template-name": "karpenter.k8s.aws/15396317734744136304", "id": "lt-0a25a414a695bd805"}
+2023-07-12T14:18:51.040Z	INFO	controller.machine.lifecycle	launched machine	{"commit": "61cc8f7-dirty", "machine": "default-tzjgw", "provisioner": "default", "provider-id": "aws:///ap-southeast-1c/i-02b793c67431ea61f", "instance-type": "m6g.xlarge", "zone": "ap-southeast-1c", "capacity-type": "spot", "allocatable": {"cpu":"3920m","ephemeral-storage":"17Gi","memory":"14103Mi","pods":"58"}}
+2023-07-12T14:18:51.267Z	INFO	controller.machine.lifecycle	launched machine	{"commit": "61cc8f7-dirty", "machine": "default-s4ltt", "provisioner": "default", "provider-id": "aws:///ap-southeast-1a/i-0c9f4e83474dafa7b", "instance-type": "c6g.2xlarge", "zone": "ap-southeast-1a", "capacity-type": "spot", "allocatable": {"cpu":"7910m","ephemeral-storage":"17Gi","memory":"14103Mi","pods":"58"}}
+2023-07-12T14:19:12.453Z	DEBUG	controller.machine.lifecycle	registered machine	{"commit": "61cc8f7-dirty", "machine": "default-s4ltt", "provisioner": "default", "provider-id": "aws:///ap-southeast-1a/i-0c9f4e83474dafa7b", "node": "ip-172-31-56-118.ap-southeast-1.compute.internal"}
+2023-07-12T14:19:15.133Z	DEBUG	controller.machine.lifecycle	registered machine	{"commit": "61cc8f7-dirty", "machine": "default-tzjgw", "provisioner": "default", "provider-id": "aws:///ap-southeast-1c/i-02b793c67431ea61f", "node": "ip-172-31-86-165.ap-southeast-1.compute.internal"}
+2023-07-12T14:19:35.516Z	DEBUG	controller.machine.lifecycle	initialized machine	{"commit": "61cc8f7-dirty", "machine": "default-s4ltt", "provisioner": "default", "provider-id": "aws:///ap-southeast-1a/i-0c9f4e83474dafa7b", "node": "ip-172-31-56-118.ap-southeast-1.compute.internal"}
+2023-07-12T14:19:38.748Z	DEBUG	controller.machine.lifecycle	initialized machine	{"commit": "61cc8f7-dirty", "machine": "default-tzjgw", "provisioner": "default", "provider-id": "aws:///ap-southeast-1c/i-02b793c67431ea61f", "node": "ip-172-31-86-165.ap-southeast-1.compute.internal"}
+2023-07-12T14:20:12.986Z	DEBUG	controller.deprovisioning	discovered subnets	{"commit": "61cc8f7-dirty", "subnets": ["subnet-04a7c6e7e1589c953 (ap-southeast-1a)", "subnet-031022a6aab9b9e70 (ap-southeast-1b)", "subnet-0eaf9054aa6daa68e (ap-southeast-1c)"]}
+2023-07-12T14:21:40.547Z	DEBUG	controller	deleted launch template	{"commit": "61cc8f7-dirty", "id": "lt-0a25a414a695bd805", "name": "karpenter.k8s.aws/15396317734744136304"}
 ```
 
-当执行扩容的时候，日志中包含如下一段信息，表示扩容正常：
+在以上这段日志中肯看到，两个Spot节点分别选用了`m6g.xlarge`和`c6g.2xlarge`机型。这两个机型的选用，与前文指定Karpenter Provisioner时候选择的配置相符。
+
+由此Karpenter扩容实验完成。
+
+### 8、Node向下缩容
+
+执行如下命令将应用程序的Replica收缩回到1个Pod。
 
 ```
+kubectl scale deployment nginx-deployment -n nlb-app-karpenter --replicas 1
 ```
 
-关于Karpenter Provsioner对机型配置的选择，请参考有关配置文件修改说明。
-
-由此，Karpenter配置完成，工作正常。最后执行如下命令将应用搜索回到1个Pod，便于后续实验发起压力扩容。
+重复以上实验过程的几个命令，分别查看Pod数量、查看带有Spot标签的Node、以及查看Karpenter日志，即可看到缩容完成。而缩容产生的日志类似如下：
 
 ```
-kubectl scale deployment demo-nginx-nlb-karpenter --replicas 1
+2023-07-12T14:31:30.361Z	INFO	controller.deprovisioning	deprovisioning via consolidation delete, terminating 2 machines ip-172-31-86-165.ap-southeast-1.compute.internal/m6g.xlarge/spot, ip-172-31-56-118.ap-southeast-1.compute.internal/c6g.2xlarge/spot	{"commit": "61cc8f7-dirty"}
+2023-07-12T14:31:30.434Z	INFO	controller.termination	cordoned node	{"commit": "61cc8f7-dirty", "node": "ip-172-31-86-165.ap-southeast-1.compute.internal"}
+2023-07-12T14:31:30.439Z	INFO	controller.termination	cordoned node	{"commit": "61cc8f7-dirty", "node": "ip-172-31-56-118.ap-southeast-1.compute.internal"}
+2023-07-12T14:31:30.790Z	INFO	controller.termination	deleted node	{"commit": "61cc8f7-dirty", "node": "ip-172-31-86-165.ap-southeast-1.compute.internal"}
+2023-07-12T14:31:30.791Z	INFO	controller.termination	deleted node	{"commit": "61cc8f7-dirty", "node": "ip-172-31-56-118.ap-southeast-1.compute.internal"}
+2023-07-12T14:31:31.095Z	INFO	controller.machine.termination	deleted machine	{"commit": "61cc8f7-dirty", "machine": "default-tzjgw", "node": "ip-172-31-86-165.ap-southeast-1.compute.internal", "provisioner": "default", "provider-id": "aws:///ap-southeast-1c/i-02b793c67431ea61f"}
+2023-07-12T14:31:31.097Z	INFO	controller.machine.termination	deleted machine	{"commit": "61cc8f7-dirty", "machine": "default-s4ltt", "node": "ip-172-31-56-118.ap-southeast-1.compute.internal", "provisioner": "default", "provider-id": "aws:///ap-southeast-1a/i-0c9f4e83474dafa7b"}
 ```
 
-至此实现了Karpenter即可实现Node的扩容。
+### 9、使用Karpenter小结
 
-从以上实验中可以看到，只要部署应用的Replica增加导致Node资源不足，就会自动创建新的Node。因此，只要实现按业务负载，自动调整Replica的数量，即可实现业务整体扩容。下一步来配置HPA，即实现根据业务压力自动缩放Replica。
+从以上实验中可以看到，只要部署应用的Replica数量增加导致Node资源不足，Karpenter就会自动创建新的Node，且创建时候可选择机型配置以及是否Spot类型。
 
-## 五、部署HPA
+不过，上一步实验是手工调整的Replica也就是Pod的数量，如果能实现按业务负载自动调整Replica的数量，即可实现自动的整体扩缩容。由此下一步实验将HPA，实现业务压力自动缩放Replica。
 
-接下来部署HPA过程中，将继续使用上文配置Karpenter的应用作为被测试的用例。
+## 五、部署HPA实现应用Pod的缩放
 
 ### 1、部署Metrics Server
 
