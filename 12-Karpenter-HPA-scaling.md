@@ -1132,7 +1132,27 @@ ip-172-31-83-78.ap-southeast-1.compute.internal    Ready    <none>   175m    v1.
 
 至此本实验全部结束。
 
-## 七、参考文档
+## 七、环境清理
+
+首先删除测试用应用，执行如下命令：
+
+```
+kubectl delete -f demo-nginx-nlb-karpenter.yaml
+```
+
+删除应用后，接下来要先删除Karpenter。如果不先删除Karpenter，那么删除一个Node时候，因为整体资源池容量不足，Karpenter会继续拉起新的Node去为资源池扩容。因此要先删除Karpenter禁止拉起新node。执行如下命令：
+
+```
+helm uninstall karpenter --namespace karpenter
+```
+
+执行如下命令删除集群：
+
+```
+eksctl delete cluster eksworkshop --region ap-southeast-1
+```
+
+## 八、参考文档
 
 HorizontalPodAutoscaler Walkthrough:
 
