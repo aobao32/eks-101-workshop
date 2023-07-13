@@ -2,6 +2,8 @@
 
 更新到EKS 1.27版本，2023年7月在AWS海外区域测试通过。
 
+---
+
 Level 100：
 
 [实验1、创建EKS集群](https://github.com/aobao32/eks-101-workshop/blob/main/01-create-cluster.md)
@@ -18,6 +20,8 @@ Level 100：
 
 [实验7、解决AWS中国区的EKS部署Container Insight无法从海外拉取镜像的问题](https://github.com/aobao32/eks-101-workshop/blob/main/07-deploy-container-Insight-from-mirror.md)
 
+---
+
 Level 200：
 
 [实验8、为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段](https://github.com/aobao32/eks-101-workshop/blob/main/08-use-seperated-subnet-for-pod.md)
@@ -28,8 +32,6 @@ Level 200：
 
 [实验11、为NodeGroup使用EC2 Spot实例](https://github.com/aobao32/eks-101-workshop/blob/main/11-Use-spot-for-nodegroup.md)
 
----
-
-以下内容1.22版本通过，但尚未更新到1.27版本
-
 [实验12、使用Karpenter+HPA实现EKS集群扩展](https://github.com/aobao32/eks-101-workshop/blob/main/12-Karpenter-HPA-scaling.md)
+
+---
