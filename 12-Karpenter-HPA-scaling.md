@@ -632,7 +632,7 @@ awsnodetemplate.karpenter.k8s.aws/default created
 kubectl describe node 
 ```
 
-这个命令会分别列出当前所有节点的资源使用情况。例如如下信息就是某个节点剩余资源情况：
+这个命令会分别列出当前所有节点的资源使用情况。例如如下信息就是某一个节点剩余资源情况：
 
 ```
 Allocated resources:
@@ -651,7 +651,7 @@ Events:              <none>
 
 由于`kubectl top node`是按节点依次输出的，因此向上滚动页面课查看前几个节点的输出信息。
 
-根据以上结果可以看出，相对CPU资源不足。因为当前测试Nodegroup是`t4g.xlarge`，只有4个vCPU，也就是每个节点CPU资源是4000。以当前节点为例，Request的vCPU已经达到1825即折算1.825个vCPU。所以再增加几个容器，每个容器都Request申请2个vCPU，就会触发扩容了。
+根据以上结果可以看出，相对CPU资源不足。因为当前测试Nodegroup是`t4g.xlarge`，只有4个vCPU，也就是每个节点CPU资源是4000。以当前节点为例，Request的vCPU已经达到1825即折算1.825个vCPU。所以再增加几个容器，每个容器都Request申请2个vCPU，这样总量就会大于4，因此就会触发扩容。
 
 现在我们来验证以上逻辑。
 
@@ -897,7 +897,7 @@ kubectl scale deployment nginx-deployment -n nlb-app-karpenter --replicas 1
 
 ## 五、部署HPA实现应用Pod的缩放
 
-前文通过Karpenter实现了Node根据资源剩余情况的缩放，接下来使用HPA实现根据访问压力对Pod数量的缩放。
+前文通过Karpenter实现了Node根据资源剩余情况的缩放，接下来使用HPA实现根据访问压力对Pod数量的缩放。接上一步部署Karpenter时候已经存在的应用和已经存在的Deployment继续操作。注：之前Replica=1或者设置为Replica=3均可。
 
 ### 1、部署Metrics Server
 
@@ -973,6 +973,21 @@ kubectl top pod -A
 
 返回结果较长，这里不再赘述。
 
+如果只希望返回特定Namespaces中的Pod的排行，可执行如下命令：
+
+```
+kubectl top pod -n nlb-app-karpenter
+```
+
+返回结果如下：（上一个实验缩容后保留了1个Pod或者3个Pod都可以，不影响后续测试）
+
+```
+NAME                               CPU(cores)   MEMORY(bytes)   
+nginx-deployment-75d9ffff7-7pvlg   1m           3Mi             
+nginx-deployment-75d9ffff7-hspwt   1m           4Mi             
+nginx-deployment-75d9ffff7-mb56v   1m           3Mi     
+```
+
 ### 3、配置性能监控并设置HPA弹性阈值
 
 执行如下命令设置HPA。其中`min=1`表示最小3个pod，`max=12`表示最大12个pod，`--cpu-percent=10`表示CPU达到10%的阈值后触发扩容。
@@ -1002,7 +1017,7 @@ NAME               REFERENCE                     TARGETS   MINPODS   MAXPODS   R
 nginx-deployment   Deployment/nginx-deployment   0%/10%    3         12        3          117s 
 ```
 
-在服务刚启动功能时候，由于没有抓取到足够数据，在`TARGETS`这一列可能显示`Unknown`。过几分钟后即可正常显示资源实际使用情况。如果没打压，且当前应用是nginx这种不占用资源的应用，这里一般显示当前`0%`。
+在服务刚启动功能时候，由于没有抓取到足够数据，在`TARGETS`这一列可能显示`Unknown/10%`。过几分钟后即可正常显示资源实际使用情况。如果没打压，且当前应用是nginx这种不占用资源的应用，这里一般显示当前`0%/10%`。
 
 如果希望修改刚配置的HPA，则执行如下命令，替换其中的Deployment名称和Namespace名称即可：
 
@@ -1012,15 +1027,17 @@ kubectl edit hpa/nginx-deployment -n  nlb-app-karpenter
 
 至此HPA配置成功。
 
-## 六、对应用施压测试HPA调整Replica实现Pod扩展
+## 六、对应用施压测试、触发HPA调整Replica实现Pod扩展并触发Karpenter扩充Node
+
+经过以上准备，本实验终于来到了EKS缩放的完整形态，即HPA负载根据压力缩放Replica调整Pod数量，而Karpenter根据Node资源池剩余资源情况拉起新Node。下面开始操作。
 
 ### 1、启动额外的EC2作为外部的负载生成器
 
-负载生成器可以使用普通的EC2进行，只要能部署apache benchmark工具即可。新部署一台`c6g.xlarge`或者`m6g.xlarge`规格的EC2，系统选择为Amazon Linux 2023操作系统。
+负载生成器可以使用普通的EC2 Linux进行，只要能部署apache benchmark工具即可。新部署一台`c6g.xlarge`或者`m6g.xlarge`规格的EC2，系统选择为Amazon Linux 2023操作系统。
 
 压力生成器几个注意事项：
 
-- 考虑到多可用区多AZ分布的问题，需要在本VPC之外的其他VPC来部署，如果只是在相同VPC的某AZ内部署压力负载生成器，那么只有本AZ的Pod和Node会收到压力。这将与预期完全不符
+- 考虑到多可用区多AZ分布的问题，需要在本VPC之外的其他VPC来部署，如果只是在与EKS相同VPC上，某个AZ内部署压力负载生成器，那么只有本AZ的Pod和Node会收到压力。这将与预期完全不符
 - 压力测试建议不要跨region，在本region获得最大压力效果
 - 机型不能太小，建议`c6g.xlarge`或者`m6g.xlarge`规格的EC2
 - 另外不要选择t系列，可能会造成CPU算力不足
@@ -1030,7 +1047,10 @@ kubectl edit hpa/nginx-deployment -n  nlb-app-karpenter
 ```
 yum update -y
 yum install httpd -y
+ab --help
 ```
+
+由此压力发生器准备完毕。
 
 ### 2、查询施压的入口
 
@@ -1049,17 +1069,32 @@ service-nginx   LoadBalancer   10.50.0.131   k8s-nlbappka-servicen-1b114eb166-77
 
 ### 3、发起负载
 
-安装完成后，执行如下命令生成压力。参数`n`代表数量，参数`c`代表线程。访问地址为上一步的NLB地址。本文使用`n=1000000`和`c=500`这个比较大的参数来施压。
+安装Apache Benchmark完成后，执行如下命令生成压力。参数`n`代表数量，参数`c`代表线程。访问地址为上一步的NLB地址。本文使用`n=1000000`和`c=500`这个比较大的参数来施压。
 
-本实验启动的Pod是一个空白的nginx，里边没有应用，因此其负载非常低，对其施加很大的压力，才能让CPU超过半数30%的弹性阈值。如果是真实生产环境，不要一开始就配置这么大的参数，会导致大量失败，甚至程序崩溃异常退出。真实生产环境可以从`n=10000`和`c=10`起步逐渐上压力。
+注意：本实验启动的Pod是一个空白的nginx，里边没有脚本语言也没有预编译应用，因此其本身的损耗非常低。在做压力测试后，需要通过`-c`参数增加线程对其施加很大的压力，才能让CPU产生明显的负载，从而达到HPA事先指定的阈值。如果是真实生产环境，不要一开始就配置这么大的参数，因为这有可能会导致大量失败，甚至应用程序崩溃异常退出。在真实生产环境上，可以从`n=10000`和`c=10`起步，逐渐增加压力，逐渐过渡到较大且稳定的参数。
+
+在负载生成器上，执行如下命令发起负载：
 
 ```
 ab -n 1000000 -c 500 http://k8s-nlbappka-servicen-1b114eb166-77c1568fcaa70b7e.elb.ap-southeast-1.amazonaws.com/
 ```
 
-由于EKS的默认参数对HPA的响应是15秒一次，且这个参数在EKS上不能修改，因此负载发生器需要在一段时间内，持续发生流量，确保应用程序Pod的负载能突破预设的30%的阈值。
+以上脚本执行数秒即可完成。由于EKS的默认参数对HPA的响应是15秒一次且这个参数在EKS上不能修改，因此负载发生器需要持续发生流量，以确保不止一个HPA的检测周期都能识别到负载的增加。
 
 ### 4、观察压力导致的HPA对Replica的调整和Pod扩容
+
+使用如下命令观察HPA对Deployment的Replica的调整：
+
+```
+kubectl get deployment -n nlb-app-karpenter
+```
+
+可看到已经按要求完成了缩放：
+
+```
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   12/12   12           12          17h
+```
 
 使用如下命令观察Metrics Server、CPU负载以及Deployment的Replica的数量：
 
@@ -1067,13 +1102,13 @@ ab -n 1000000 -c 500 http://k8s-nlbappka-servicen-1b114eb166-77c1568fcaa70b7e.el
 kubectl get hpa -n nlb-app-karpenter -w
 ```
 
-这里加了-w参数，表示命令不会退出，而是自动刷新。因此就不用反复执行了。
-
-使用如下命令观察Deployment的Replica对应的Pod数量：
+这里加了-w参数，表示命令不会退出，而是每隔几秒自动打印出来新的一行。因此就不用反复执行本命令了。返回结果如下：
 
 ```
-kubectl get pod -n nlb-app-karpenter -w
+nginx-deployment   Deployment/nginx-deployment   39%/10%   3         12        6          15h
 ```
+
+由此可以看到HPA已经对Pod完成扩容。
 
 ### 5、观察Pod增加导致的Node资源池用完然后引起的Node扩容
 
@@ -1083,17 +1118,21 @@ kubectl get pod -n nlb-app-karpenter -w
 kubectl get node -l karpenter.sh/capacity-type=spot
 ```
 
+返回信息如下：
+
+```
+NAME                                               STATUS   ROLES    AGE     VERSION
+ip-172-31-64-191.ap-southeast-1.compute.internal   Ready    <none>   3m21s   v1.27.1-eks-2f008fe
+ip-172-31-67-50.ap-southeast-1.compute.internal    Ready    <none>   3m21s   v1.27.1-eks-2f008fe
+ip-172-31-78-112.ap-southeast-1.compute.internal   Ready    <none>   3m29s   v1.27.1-eks-2f008fe
+ip-172-31-83-78.ap-southeast-1.compute.internal    Ready    <none>   175m    v1.27.1-eks-2f008fe
+```
+
 以上信息可看到，HPA和Karpenter扩展了新的Spot节点，为负载压力提供了支持。
 
+至此本实验全部结束。
+
 ## 七、参考文档
-
-Karpenter:
-
-[https://www.eksworkshop.com/beginner/085_scaling_karpenter/](https://www.eksworkshop.com/beginner/085_scaling_karpenter/)
-
-HPA:
-
-[https://www.eksworkshop.com/beginner/080_scaling/](https://www.eksworkshop.com/beginner/080_scaling/)
 
 HorizontalPodAutoscaler Walkthrough:
 
