@@ -1,4 +1,4 @@
-# 实验三、启用CloudWatch Container Insight & 调整集群规格和配置
+# 实验三、启用CloudWatch Container Insight、新建Nodegroup节点组以及调整节点组机型配置
 
 EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
@@ -62,7 +62,7 @@ daemonset.apps/fluent-bit created
 
 等待一段时间后，监控数据即可正常加载。
 
-## 二、手工调整节点组数量
+## 二、手工调整节点组数量（不改变机型，只调整数量）
 
 注意，下文是手动缩放，如果您需要自动缩放，请参考EKS实验对应Cluster Autoscaling（CA）章节。
 
@@ -136,11 +136,13 @@ CLUSTER		NODEGROUP	STATUS	CREATED			MIN SIZE	MAX SIZE	DESIRED CAPACITY	INSTANCE 
 eksworkshop	managed-ng	ACTIVE	2023-06-12T14:39:13Z	3		9		6			t3.xlarge	AL2_x86_64	eks-managed-ng-30c45805-f3a9-09c2-6f2a-4683ad432afb	managed
 ```
 
-## 三、调整节点组EC2规格
+## 三、三、新增group节点组并删除旧的节点组
 
 前文创建集群使用的EC2作为Nodegruop，节点不能更换规格。为此，需要在当前集群下新建一个nodegroup，并使用新的EC2规格，随后再删除旧的nodegroup。创建完毕后，可从旧的Node上驱逐pod，此时pod会自动在新nodegroup上拉起。如果应用是非长连接的、无状态的应用，那么整个过程不影响应用访问。
 
-### 1、增加Graviton机型ARM架构处理器的Nodegroup的准备工作
+### 1、增加Graviton机型ARM架构处理器的Nodegroup的准备工作（如果您要新增Intel处理器的节点组，请跳过本章节）
+
+如果您要新增Intel处理器的节点组，请跳过本章节。
 
 使用Graviton的ARM架构的EC2，需要事先运行如下命令检查系统组件是否为最新版本。替换如下命令中的集群名称为实际集群名称，然后执行如下命令：
 
@@ -179,7 +181,7 @@ eksctl utils update-kube-proxy --cluster eksworkshop --approve
 eksctl utils update-aws-node --cluster eksworkshop --approve
 ```
 
-### 2、新建使用新的Graviton处理器ARM架构EC2的Nodegroup
+### 2、新建Nodegroup并使用Graviton处理器ARM架构EC2机型
 
 编辑如下内容，并保存为`newnodegroup.yaml`文件。需要注意的是，如果新创建的Nodegroup在Public Subnet内，这直接使用如下内容即可。如果新创建的Nodegroup在Private Subnet内，那么请增加如下一行`privateNetworking: true`到配置文件中。添加的位置在`volumeSize`的下一行即可。
 
@@ -215,6 +217,8 @@ managedNodeGroups:
         xRay: true
         cloudWatch: true
 ```
+
+注：如果您需要使用Intel处理器机型，请替换上文中的`m6g.2xlarge`为`m6i.2xlarge`即可使用Intel处理器机型。
 
 编辑完毕后保存退出。执行如下命令创建：
 
