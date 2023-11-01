@@ -192,9 +192,29 @@ S3 Gateway Endpoint不依赖DNS解析，它的工作方式是基于路由表。�
 
 ### 2、本VPC没有S3 VPC Endpoint时候新建配置
 
-进入VPC服务界面，搜索S3服务，选择类型为Gateway的Endpoint。
+进入VPC服务界面，搜索S3服务，选择类型为Gateway的Endpoint。在搜索条件位置，输入`com.amazonaws.ap-southeast-1.s3`作为搜索条件。然后在查询出来的Endpoint服务中，选择类型是`Gateway`的。如下截图。
 
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-25.png)
 
+继续向下滚动页面。选择Endpoint要绑定的VPC。在路由表中，选择本VPC所有的路由表。注意此时右侧的一列`Associated Ids`可显示本路由表绑定了多少个子网，用于配置参考提示之用。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-26.png)
+
+继续向下滚动页面。选择Policy是`Full access`。最后点击右下角创建按钮。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-27.png)
+
+创建S3 VPC Endpoint需要3-5分钟生效。
+
+### 3、验证S3 VPC Endpoint工作正常
+
+登录到位于内网的EC2上，事先配置好AKSK密钥，然后执行S3相关命令，能正常工作就表示S3 VPC Endpoint正常。例如查询存储桶清单命令。
+
+```
+aws s3 ls
+```
+
+至此EKS工作在内部网络所需要的VPC Endpoint全部配置完毕。
 
 ## 五、参考文档
 
