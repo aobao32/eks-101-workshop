@@ -1,20 +1,40 @@
 # 在没有外部网络权限的内部子网使用EKS服务时需要额外配置的VPC Endpoint
 
+本文介绍如何在没有外部网络连接的内部子网使用EKS服务。
+
 ## 一、背景
 
-在使用EKS服务时候，EKS集群的Node节点需要连接EC2、ECR、ELB等若干AWS服务，进行Node节点创建、镜像管理等操作，而这一步是依赖外网访问权限的。
+### 1、为何需要VPC Endpoint
 
-在没有外部网络权限的内部子网使用EKS服务时，因为没有外网权限，无法连接到AWS位于互联网上的服务节点，因此会遇到错误，导致节点不能正常拉起。此时，需要额外配置的VPC Endpoint。需要额外配置的包括EC2、ECR、S3、ELB、CloudWatch、STS等（X-ray根据实际情况配置）。需要配置的清单参考本文默认的官方文档。
+在使用EKS服务时候，EKS集群的Node节点需要连接EC2、ECR、ELB等若干AWS服务，进行Node节点创建、镜像管理等操作，而这一步是依赖外网访问权限的。在没有外部网络权限的内部子网使用EKS服务时，因为没有外网权限，无法连接到AWS位于互联网上的服务节点，因此会遇到错误，导致节点不能正常拉起。由此，需要配置VPC Endpoint。使用EKS需要配置EC2、ECR、S3、ELB、CloudWatch、STS等基础（X-ray根据实际情况配置）。
 
-在配置好VPC Endpoint后，位于内网的节点、服务、代码就可以通过显式声明，即添加`--endpoint-url https://xxxx/`的形式来访问以上服务。但是，EKS相关系统服务是自动触发调用的，不是用户手工开发的代码，因此无法显式添加`--endpoint-url https://xxxx/`的参数。这时候，可以使用Route 53 Private Zone为本VPC提供特殊的解析，将原先的Endpoint域名默认解析到公网，通过CNAME的方式解析到VPC内网新创建的这几个Endpoint上，即可让相关服务无缝调用。对于修改了EC2默认DNS，即没有使用AWS VPC的DNS而是自建DNS Server的场景，也可适用。
+### 2、需要哪几种VPC Endpoint
 
-本文以配置EC2为例讲解VPC Endpoint和Route 53 Private Zone配置，其他服务流程相同。
+需要配置的清单参考本文末尾的官方文档，这里概括如下。
 
-为保证操作精准，以英文菜单为例进行交互。在界面中点击齿轮按钮，可以切换AWS Console的语言。如下截图。
+|服务|创建Endpoint界面搜索的服务名称|类型|EC2使用VPC默认DNS时候<br>Endpoint是否自动解析|EC2使用自建DNS<br>是否需要配置|
+|---|---|---|---|---|
+|EC2|com.amazonaws.ap-southeast-1.ec2|Interface|是|是|
+|ECR|com.amazonaws.ap-southeast-1.ecr.api|Interface|是|是|
+|ECR|com.amazonaws.ap-southeast-1.ecr.dkr|Interface|是|是|
+|ELB|com.amazonaws.ap-southeast-1.elasticloadbalancing|Interface|是|是|
+|S3|xxx|Gateway|不需要解析|不需要解析|
+
+### 3、VPC Endpoint的域名解析
+
+在配置好VPC Endpoint后，位于内网的节点、服务、代码就可以通过显式声明，即添加`--endpoint-url https://xxxx/`的形式来访问以上服务。对于无法显式添加Endpoint的场景，在以前可以使用Route 53 Private Zone为本VPC提供特殊的解析，将原先的Endpoint域名默认解析到公网，通过CNAME的方式解析到VPC内网新创建的这几个Endpoint上，即可让相关服务无缝调用。
+
+为Endpoint提供解析之前需要额外手工配置Route 53 Private Zone。目前VPC Endpoint已经是集成了这个功能，在创建时候可以自动开启，无须额外创建Zone。
+
+如果当前环境的EC2修改了默认DNS，即没有使用AWS VPC的DNS而是自建DNS Server的场景，那么还需要手工额外配置解析。
+
+为保证操作精准，以英文菜单为例进行交互。点击界面上方区域代号边上的齿轮按钮，可以切换AWS Console的语言。如下截图。
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-00.png)
 
-## 二、配置VPC Endpoint
+## 二、配置EC2服务的VPC Endpoint
+
+类型为Interface的VPC Endpoint包括上表中的EC2、ECR、ELB服务。
 
 ### 1、创建VPC Endpoint
 
@@ -32,7 +52,11 @@ VPC Endpoint是区域（Regional）级别的服务，因此必须准确选择区
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-03.png)
 
-接下来继续配置。在IP地址类型位置默认选择`IPv4`，在安全规则组位置，需要给Endpoint选择一个安全组。这里如果没有事先创建好合适的安全组，可去创建一个新的安全组，名字叫VPCEndpoint，放行范围是允许来自本VPC的CIDR范围（一般不要写`0.0.0.0/0`）的地址授权允许入站访问443端口。然后在安全组这一步，绑定安全组。页面再下方的Policy位置，选择默认的`Full access`。继续向下滚动页面。如下截图。
+接下来继续配置。点击展开高级配置，选中其中的`Enable DNS name`的选项。由此本VPC内的服务访问将自动被解析到Endpoint。在IP地址类型位置默认选择`IPv4`。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-03-dns.png)
+
+在安全规则组位置，需要给Endpoint选择一个安全组。这里如果没有事先创建好合适的安全组，可去创建一个新的安全组，名字叫VPCEndpoint，放行范围是允许来自本VPC的CIDR范围（一般不要写`0.0.0.0/0`）的地址授权允许入站访问443端口。然后在安全组这一步，绑定安全组。页面再下方的Policy位置，选择默认的`Full access`。继续向下滚动页面。如下截图。
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-04.png)
 
@@ -42,7 +66,7 @@ VPC Endpoint是区域（Regional）级别的服务，因此必须准确选择区
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-05.png)
 
-### 2、查看VPC Endpoint
+### 2、查看VPC Endpoint地址
 
 在VPC Endpoint界面，选中刚才创建的EC2 Endpoint，然后查看Detail，可看到下方有如下数个域名。如下截图。
 
@@ -64,17 +88,17 @@ VPC全局可用的入口的域名（多AZ的别名）：
 
 在以上域名中可看到其中包含`-1a`、`-1b`、`-1c`，这就表示三个AZ各自的Endpoint入口。如果上一步创建的是两个AZ，那么这里就是只有2个AZ的地址。
 
-在最右侧，还有一个域名`ec2.ap-southeast-1.amazonaws.com`，这个域名下一步是要添加Route 53 Private Zone私有解析，或者使用自建DNS来解析的域名。本文下一章节会描述如何配置。
+在最右侧，还有一个域名`ec2.ap-southeast-1.amazonaws.com`，这个域名在使用自建DNS时候要配置解析。后续章节会描述。
 
 接下来还可以查看这些Endpoint域名背后的IP地址。在刚才的VPC Endpoint界面，点击第二个标签页子网`Subnets`，即可看到这些信息。如下截图。
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-07.png)
 
-出于自动管理和高可用角度，不建议在代码中hardcode写入IP地址，建议代码和系统调用还是用AWS自动生成的域名。
+从自动管理和高可用的角度，不建议在代码中hardcode写入IP地址，建议代码和系统调用还是用AWS自动生成的域名。
 
-### 3、测试VPC Endpoint工作正常
+### 3、显式声明VPC Endpoint地址确认工作正常
 
-根据本文上一步，我们选择VPC全局可用的入口的域名（多AZ的别名），然后将其放到AWSCLI脚本中，显式声明通过这个入口来调用，测试是否正常。
+根据本文上一步截图中，我们选择VPC全局可用的入口的域名（多AZ的别名），然后将其放到AWSCLI脚本中，显式声明通过这个入口来调用，测试是否正常。
 
 登录到位于内网的EKS节点上，使用AWSCLI（事先配置好AKSK），构建如下命令来查询当前Region的EC2清单：
 
@@ -86,17 +110,91 @@ aws ec2 describe-instances --endpoint-url https://vpce-03f7e3e94e933f477-jzzbvb9
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-08.png)
 
-如果本EC2所在是纯内部网络，没有外网出口路由，也没有显示指定Endpoint，那么这个命令是会报错的，提示无法连接到EC2服务。
+### 4、EC2使用VPC默认DNS场景 - VPC自动提供Endpoint的解析
 
-验证VPC Endpoint工作正常后，接下来配置解析。
+如果按照前文步骤，创建VPC Endpoint时候打开了VPC支持，那么不需要显式声明`--endpoint-url`，即可正常工作。
 
-## 三、使用Route 53 Private Zone提供私有解析
+此时也可通过执行域名查询命令，确认其解析有效。命令如下。
 
-待更新。
+```shell
+nslookup ec2.ap-southeast-1.amazonaws.com
+```
 
-## 四、其他EKS需要的Endpoint
+当配置正确时候，返回个结果如下：
 
-待更新。
+```shell
+[root@ip-172-31-1-79 ~]# nslookup ec2.ap-southeast-1.amazonaws.com
+Server:         172.31.0.2
+Address:        172.31.0.2#53
+
+Non-authoritative answer:
+Name:   ec2.ap-southeast-1.amazonaws.com
+Address: 172.31.78.156
+Name:   ec2.ap-southeast-1.amazonaws.com
+Address: 172.31.86.228
+Name:   ec2.ap-southeast-1.amazonaws.com
+Address: 172.31.56.201
+
+[root@ip-172-31-1-79 ~]#
+```
+
+以上返回的三个地址就是VPC Endpoint在本VPC内的入口域名对应的IP地址。
+
+这个时候执行刚才的命令：
+
+```shell
+aws ec2 describe-instances
+```
+
+就可以看到执行正常。此时查询已经是通过Endpoint完成的了。
+
+### 5、EC2使用自建DNS场景
+
+请在自己搭建的DNS上添加解析：记录是`ec2.ap-southeast-1.amazonaws.com`，添加CNAME，解析到`vpce-03f7e3e94e933f477-jzzbvb9s.ec2.ap-southeast-1.vpce.amazonaws.com`。TTL选择一般为60秒或300秒即可。
+
+配置完毕后，登录到EC2上，通过`nslookup`命令确认其解析成功。然后再次执行`aws ec2 describe-instances`命令测试访问即可。
+
+## 三、配置ECR和ELB类型也是Interface类型的VPC Endpoint
+
+由于ECR和ELB类型也是Interface VPC Endpoint，配置全流程不再赘述。这里只附上关键的搜索名称：
+
+- com.amazonaws.ap-southeast-1.ecr.api
+- com.amazonaws.ap-southeast-1.ecr.dkr
+- com.amazonaws.ap-southeast-1.elasticloadbalancing
+
+配置好后效果如下：
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-21.png)
+
+接下来配置S3的Endpoint。
+
+## 四、配置类型为Gateway的S3 VPC Endpoint
+
+### 1、本VPC已经存在S3 VPC Endpoint时候的路由表配置
+
+在创建VPC时候，创建VPC向导会询问是否创建类型为Gateway的S3 VPC Endpoint，无论是否选中，创建VPC都会成功。因此在给VPC创建S3 VPC Endpoint之前，先查询下是否有已经存在的S3 VPC Endpoint。同一个VPC，只能有一个S3 VPC Endpoint。
+
+进入VPC Endpoint界面，搜索关键词`com.amazonaws.ap-southeast-1.s3`，如果能搜索出来，表示创建VPC时候已经创建了Endpoint。那么接下来就是将S3 VPC Endpoint绑定到所有的路由表。点击第二个标签页路由表，点击右侧的编辑按钮。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-22.png)
+
+进入编辑界面，选中本VPC所有子网（包括有EIP的外部子网，也包括没有外部网络的内部子网）。然后点击修改路由表。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-23.png)
+
+修改需要3-5分钟生效。
+
+生效的最终确认方式是：点击进入到内部子网使用的路由表上，查看其中包含类似`pl-6fa54006`的条目，目标地址是`vpce-0014aadb62f662d16`，这就表示Gateway Endpoint配置生效。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-24.png)
+
+S3 Gateway Endpoint不依赖DNS解析，它的工作方式是基于路由表。因此即便EC2使用的是自建DNS，也不要添加记录。
+
+### 2、本VPC没有S3 VPC Endpoint时候新建配置
+
+进入VPC服务界面，搜索S3服务，选择类型为Gateway的Endpoint。
+
+
 
 ## 五、参考文档
 
