@@ -6,9 +6,9 @@
 
 ### 1、为何需要VPC Endpoint
 
-在使用EKS服务时候，EKS集群的Node节点需要连接EC2、ECR、ELB等若干AWS服务，进行Node节点创建、镜像管理等操作，而这一步是依赖外网访问权限的。在没有外部网络权限的内部子网使用EKS服务时，因为没有外网权限，无法连接到AWS位于互联网上的服务端点，因此会遇到错误导致节点不能正常拉起。
+在使用EKS服务时候，EKS集群的Node节点需要连接EC2、EKS、ECR、ELB等若干AWS服务，进行Node节点创建、镜像管理等操作，而这一步是依赖外网访问权限的。在没有外部网络权限的内部子网使用EKS服务时，因为没有外网权限，无法连接到AWS位于互联网上的服务端点，因此会遇到错误导致节点不能正常拉起。
 
-由于内部网络不能提供对外路由，因此对这几个AWS服务的API调用需要配置VPC Endpoint来实现。在内部网络使用EKS需要配置EC2、ECR、S3、ELB、CloudWatch、STS等基础（X-ray根据实际情况配置）。
+由于内部网络不能提供对外路由，因此对这几个AWS服务的API调用需要配置VPC Endpoint来实现。在内部网络使用EKS需要配置EC2、EKS、ECR、S3、ELB、CloudWatch、STS等基础（X-ray根据实际情况配置）。
 
 ### 2、需要哪几种VPC Endpoint
 
@@ -17,6 +17,7 @@
 |服务|创建Endpoint界面搜索的服务名称|类型|EC2使用VPC默认DNS时候<br>Endpoint是否自动解析|EC2使用自建DNS<br>是否需要配置|
 |---|---|---|---|---|
 |EC2|com.amazonaws.ap-southeast-1.ec2|Interface|是|是|
+|EKS|com.amazonaws.ap-southeast-1.eks|Interface|是|是|
 |ECR|com.amazonaws.ap-southeast-1.ecr.api|Interface|是|是|
 |ECR|com.amazonaws.ap-southeast-1.ecr.dkr|Interface|是|是|
 |ELB|com.amazonaws.ap-southeast-1.elasticloadbalancing|Interface|是|是|
@@ -36,7 +37,7 @@
 
 ## 二、配置EC2服务的VPC Endpoint
 
-类型为Interface的VPC Endpoint包括上表中的EC2、ECR、ELB、CloudWatch、STS服务。
+类型为Interface的VPC Endpoint包括上表中的EC2、EKS、ECR、ELB、CloudWatch、STS服务，配置过程如下。
 
 ### 1、创建VPC Endpoint
 
@@ -54,7 +55,7 @@ VPC Endpoint是区域（Regional）级别的服务，因此必须准确选择区
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-03.png)
 
-接下来继续配置。点击展开高级配置，确认其中的`Enable DNS name`的选项是默认选中的状态。由此本VPC内的服务访问将自动被解析到Endpoint。在IP地址类型位置默认选择`IPv4`。如下截图。
+接下来继续配置。点击展开高级配置，确认其中的`Enable DNS name`的选项是默认选中的状态。如果是使用AWS VPC自带的DNS，则选中这个选项，由此本VPC内的服务访问将自动被解析到Endpoint。如果是使用自建DNS不使用VPC自带的DNS，那么需要关闭本选项。在IP地址类型位置默认选择`IPv4`。如下截图。
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-03-dns.png)
 
@@ -78,15 +79,19 @@ VPC Endpoint是区域（Regional）级别的服务，因此必须准确选择区
 
 VPC全局可用的入口的域名（多AZ的别名）：
 
-- vpce-03f7e3e94e933f477-jzzbvb9s.ec2.ap-southeast-1.vpce.amazonaws.com
+```
+vpce-03f7e3e94e933f477-jzzbvb9s.ec2.ap-southeast-1.vpce.amazonaws.com
+```
 
 访问这个地址，即可自动解析到某个AZ的Endpoint。
 
 单个AZ的Endpoint的入口域名（只解析到本AZ）：
 
-- vpce-03f7e3e94e933f477-jzzbvb9s-ap-southeast-1a.ec2.ap-southeast-1.vpce.amazonaws.com
-- vpce-03f7e3e94e933f477-jzzbvb9s-ap-southeast-1b.ec2.ap-southeast-1.vpce.amazonaws.com
-- vpce-03f7e3e94e933f477-jzzbvb9s-ap-southeast-1c.ec2.ap-southeast-1.vpce.amazonaws.com
+```
+vpce-03f7e3e94e933f477-jzzbvb9s-ap-southeast-1a.ec2.ap-southeast-1.vpce.amazonaws.com
+vpce-03f7e3e94e933f477-jzzbvb9s-ap-southeast-1b.ec2.ap-southeast-1.vpce.amazonaws.com
+vpce-03f7e3e94e933f477-jzzbvb9s-ap-southeast-1c.ec2.ap-southeast-1.vpce.amazonaws.com
+```
 
 在以上域名中可看到其中包含`-1a`、`-1b`、`-1c`，这就表示三个AZ各自的Endpoint入口。如果上一步创建的是两个AZ，那么这里就是只有2个AZ的地址。
 
@@ -98,7 +103,7 @@ VPC全局可用的入口的域名（多AZ的别名）：
 
 从自动管理和高可用的角度，不建议在代码中hardcode写入IP地址，建议代码和系统调用还是用AWS自动生成的域名。
 
-### 3、显式声明VPC Endpoint地址确认工作正常（可选测试）
+### 3、通过显式声明传入VPC Endpoint地址的方式确认Endpoint正常（可选测试）
 
 根据本文上一步截图中，我们选择VPC全局可用的入口的域名（多AZ的别名），然后将其放到AWSCLI脚本中，显式声明通过这个入口来调用，测试是否正常。
 
@@ -112,11 +117,11 @@ aws ec2 describe-instances --endpoint-url https://vpce-03f7e3e94e933f477-jzzbvb9
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-08.png)
 
-### 4、EC2使用VPC默认DNS场景 - VPC自动提供Endpoint的解析
+### 4、EC2使用VPC默认DNS场景 - 使用VPC自动提供Endpoint的解析
 
 如果按照前文步骤，创建VPC Endpoint时候打开了VPC支持，那么不需要显式声明`--endpoint-url`，就可正常工作。
 
-执行域名查询命令，确认其解析有效。命令如下。
+执行域名查询命令，确认其解析有效。注意，所有VPC Endpoint都禁止Ping，因此ping命令只能用于测试解析是否正常。此外可使用`nslookup`命令代替。命令如下。
 
 ```shell
 nslookup ec2.ap-southeast-1.amazonaws.com
@@ -159,25 +164,40 @@ aws ec2 describe-instances
 - 解析值：`vpce-03f7e3e94e933f477-jzzbvb9s.ec2.ap-southeast-1.vpce.amazonaws.com`
 - TTL：一般为60秒或300秒即可
 
-配置完毕后，等待1分钟（TTL周期）生效。
+请不要直接把以上内容填写到DNS。以上内容是本文做测试过程生成的记录。在您的真实生产环境内，要添加的DNS解析请查询您的VPC配置界面实际生成的域名（包含一个随机字符串与别的AWS账户相区分）。配置完毕后，等待1分钟（TTL周期）生效。
 
 登录到EC2上，通过`nslookup`命令确认其解析VPC Endpoint成功。然后再次执行`aws ec2 describe-instances`命令测试访问即可。
 
-## 三、配置ECR、ELB、CloudWatch、STS等类型也是Interface类型的VPC Endpoint
+## 三、配置EKS、ECR、ELB、CloudWatch、STS、EKS等类型也是Interface类型的VPC Endpoint
 
-由于ECR和ELB类型也是Interface VPC Endpoint，配置全流程不再赘述。这里只附上关键的搜索名称：
+由于这几种服务类型也是Interface VPC Endpoint，配置全流程不再赘述。这里附上创建VPC Endpoint时候要搜索查找的服务名称：
 
+- com.amazonaws.ap-southeast-1.eks
 - com.amazonaws.ap-southeast-1.ecr.api
 - com.amazonaws.ap-southeast-1.ecr.dkr
 - com.amazonaws.ap-southeast-1.elasticloadbalancing
 - com.amazonaws.ap-southeast-1.logs
 - com.amazonaws.ap-southeast-1.sts
 
-配置好后效果如下：
+注意以上几个名字不是域名解析，是在配置VPC Endpoint界面上要搜索的服务名称。配置好后效果如下：
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-21.png)
 
-接下来配置S3的Endpoint。
+如果是使用VPC自带的DNS解析，那么打开DNS解析后都会自动生效。如果是自建DNS解析，那么就需要为以上Endpoint对照的域名添加解析记录。以本文为例：
+
+|服务|要添加解析的域名|CNAME记录|
+|---|---|---|
+|EC2|ec2.ap-southeast-1.amazonaws.com|vpce-03f7e3e94e933f477-jzzbvb9s.ec2.ap-southeast-1.vpce.amazonaws.com|
+|EKS|eks.ap-southeast-1.amazonaws.com|vpce-03ff04f80322c97e8-f71svdwb.eks.ap-southeast-1.vpce.amazonaws.com|
+|ECR-API|api.ecr.ap-southeast-1.amazonaws.com|vpce-0a66a4c16d2ad4bdf-a4oezego.api.ecr.ap-southeast-1.vpce.amazonaws.com|
+|ECR-DKR|*.dkr.ecr.ap-southeast-1.amazonaws.com|vpce-052964fb1bab4d105-ewqgfa9t.dkr.ecr.ap-southeast-1.vpce.amazonaws.com|
+|ELB|elasticloadbalancing.ap-southeast-1.amazonaws.com|vpce-05ccb048eccd2287e-locfnd3m.elasticloadbalancing.ap-southeast-1.vpce.amazonaws.com|
+|CloudWatch|logs.ap-southeast-1.amazonaws.com|logs.ap-southeast-1.amazonaws.com|
+|STS|sts.ap-southeast-1.amazonaws.com|vpce-0c7a7868d16cf631f-3p1z73w5.sts.ap-southeast-1.vpce.amazonaws.com|
+
+以上为本文档的例子，请替换以上所有信息为您的账户内生成的Endpoint域名。
+
+至此除S3之外的Endpoint配置完成。接下来配置S3的Endpoint。
 
 ## 四、配置类型为Gateway的S3 VPC Endpoint
 
