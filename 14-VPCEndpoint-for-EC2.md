@@ -249,7 +249,27 @@ aws s3 ls
 
 至此EKS工作在内部网络所需要的VPC Endpoint全部配置完毕。
 
-## 五、参考文档
+## 五、确认EKS控制平面(Control Plane)允许VPC内连接
+
+在完成所有Endpoint配置后，还需要再确认下EKS Control Plane所在的子网和允许Access状态。
+
+在创建EKS时候，不管是使用eksctl命令行工具，还是EKS控制台图形界面，都需要将EKS控制平面选择到私有子网。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-31.png)
+
+同时，在EKS控制平面授权上，选择同时允许Public+Private。如果创建集群时候选择的控制平面只允许Public来访问，那么这里必须修改为Private，或者选择为同时接受Public和Private。否则位于纯内网的Nodegroup将无法和EKS控制平面通信。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-32.png)
+
+这样选择的好处是，开发者、运维人员本机的eksctl、kubectl等工具即可以从互联网直接操作EKS，同时VPC内的EKS Nodegroup也可以正常与EKS控制平面通信。
+
+此参数创建后可修改。如果集群创建之初选的Public，创建后可以修改。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-33.png)
+
+至此所有配置完成。
+
+## 六、参考文档
 
 Private cluster requirements
 
