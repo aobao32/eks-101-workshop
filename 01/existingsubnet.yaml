@@ -4,7 +4,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop2
   region: ap-southeast-1
-  version: "1.27"
+  version: "1.28"
 
 vpc:
   clusterEndpoints:
