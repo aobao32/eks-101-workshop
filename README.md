@@ -34,4 +34,8 @@ Level 200：
 
 [实验12、使用Karpenter+HPA实现EKS集群扩展](https://github.com/aobao32/eks-101-workshop/blob/main/12-Karpenter-HPA-scaling.md)
 
+[实验14、在内部网络使用EKS配置必要的Endpoint](https://github.com/aobao32/eks-101-workshop/blob/main/14-VPCEndpoint-for-EC2.md)
+
+[实验15、收集EKS Node节点日志用于Support排查](https://github.com/aobao32/eks-101-workshop/blob/main/15-EKS-node-log-collection.md)
+
 ---
