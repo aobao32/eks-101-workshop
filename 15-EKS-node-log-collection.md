@@ -16,14 +16,14 @@
 
 执行如下命令：
 
-```
+```shell
 curl -O https://raw.githubusercontent.com/awslabs/amazon-eks-ami/master/log-collector-script/linux/eks-log-collector.sh
 sudo bash eks-log-collector.sh
 ```
 
 其效果如下
 
-```
+```shell
         This is version 0.7.6. New versions can be found at https://github.com/awslabs/amazon-eks-ami/blob/master/log-collector-script/
 
 Trying to collect common operating system logs...
@@ -67,7 +67,7 @@ Trying to archive gathered information...
 
 现在就可以将这个文件通过scp命令复制出来。在能够通过ssh连接的机器上执行：
 
-```
+```shell
 scp -i 证书名.pem ec2-users@nodeip:/var/log/eks_i-091b361f59c1ee174_2023-11-03_0412-UTC_0.7.6.tar.gz .
 ```
 
@@ -75,7 +75,7 @@ scp -i 证书名.pem ec2-users@nodeip:/var/log/eks_i-091b361f59c1ee174_2023-11-0
 
 日志是tar.gz的压缩包，打开这个压缩包，可看到里边包含了EKS各组件的日志：
 
-```
+```shell
  ~/D/eks_i-064f96b0dd6d7dcc6_2023-11-03_0213-UTC_0.7.6  ls -l                                                       12:27:26
 total 0
 drwxr-xr-x@  4 lxy  staff  128 Nov  3 10:16 cni/
