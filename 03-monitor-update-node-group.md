@@ -136,7 +136,7 @@ CLUSTER		NODEGROUP	STATUS	CREATED			MIN SIZE	MAX SIZE	DESIRED CAPACITY	INSTANCE 
 eksworkshop	managed-ng	ACTIVE	2023-06-12T14:39:13Z	3		9		6			t3.xlarge	AL2_x86_64	eks-managed-ng-30c45805-f3a9-09c2-6f2a-4683ad432afb	managed
 ```
 
-## 三、三、新增group节点组并删除旧的节点组
+## 三、新增group节点组并删除旧的节点组
 
 前文创建集群使用的EC2作为Nodegruop，节点不能更换规格。为此，需要在当前集群下新建一个nodegroup，并使用新的EC2规格，随后再删除旧的nodegroup。创建完毕后，可从旧的Node上驱逐pod，此时pod会自动在新nodegroup上拉起。如果应用是非长连接的、无状态的应用，那么整个过程不影响应用访问。
 
