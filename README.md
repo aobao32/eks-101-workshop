@@ -38,4 +38,6 @@ Level 200：
 
 [实验15、收集EKS Node节点日志用于Support排查](https://github.com/aobao32/eks-101-workshop/blob/main/15-EKS-node-log-collection.md)
 
+[实验16、将EC2手工加入EKS集群成为托管节点](https://github.com/aobao32/eks-101-workshop/blob/main/16-Add-EC2-node.md)
+
 ---
