@@ -40,4 +40,5 @@ Level 200：
 
 [实验16、将EC2手工加入EKS集群成为托管节点](https://github.com/aobao32/eks-101-workshop/blob/main/16-Add-EC2-node.md)
 
+[实验17、使用EKS控制台的Addon功能升级EKS VPC CNI](https://github.com/aobao32/eks-101-workshop/blob/main/17-EKS-addon.md)
 ---
