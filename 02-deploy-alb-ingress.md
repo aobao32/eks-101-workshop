@@ -14,23 +14,29 @@ eksctl utils associate-iam-oidc-provider --region ap-southeast-1 --cluster ekswo
 
 ### 2、创建IAM Policy（请注意区分Global区域和中国区配置文件）
 
-下载已经预先配置好的IAM策略到本地，保持iam-policy.json的文件名。另外请注意，本文使用的ALB ingress是2.x，因此IAM policy与之前1.x的版本不通用，请注意部署时候才用正确的版本。
+下载已经预先配置好的IAM策略到本地，保持iam-policy.json的文件名，如果是AWS中国区，那么文件名是iam-policy_cn.json。另外请注意，本文使用的ALB ingress是2.x，因此IAM policy与之前1.x的版本不通用，请注意部署时候才用正确的版本。
+
+#### (1) 全球区域（海外区域）
 
 ```
-curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.5.1/docs/install/iam_policy.json
+curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
 ```
 
-如果实验环境位于中国区，从Github的文件服务器下载文件失败，那么可以从如下实验用网址下载：
+#### (2) 中国区域（IAM Policy中带有aws-cn标识）
+
+如果在中国区域使用，可以下载修改过arn标签的如下文件（从Github下载）：
 
 ```
-curl -O https://myworkshop.bitipcman.com/eks101/02/iam_policy.json
+curl -O iam-policy_cn.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy_cn.json
 ```
 
-另外请注意：刚下载到的iam_policy.json是匹配AWS Global Region的，如果在中国区域使用，可以下载修改过arn标签的如下文件：
+从中国区访问Github如果遇到下载失败，那么可从如下地址下载：
 
 ```
-curl -O https://myworkshop.bitipcman.com/eks101/02/iam_policy-cn.json
+curl -O iam-policy_cn.json https://myworkshop.bitipcman.com/eks101/02/iam_policy.json
 ```
+
+#### (3) 创建IAM Policy
 
 创建IAM Policy，执行如下命令。注意上一步下载的文件如果是中国区的版本，注意文件名的区别。
 
