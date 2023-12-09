@@ -12,7 +12,13 @@
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/addon/a-01.png)
 
-通过执行如下命令，可以看到aws-vpc-cni等插件工作正常。
+执行如下命令：
+
+```shell
+kubectl describe daemonset aws-node --namespace kube-system
+```
+
+可以看到aws-vpc-cni等插件工作正常。
 
 则是由于自行安装插件和从EKS控制台安装Addons是完全独立的两个安装通道。互相不可见。
 
