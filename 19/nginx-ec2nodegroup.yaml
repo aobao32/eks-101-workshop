@@ -1,0 +1,47 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata: 
+  name: nginx-ec2nodegroup
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-ec2nodegroup
+  namespace: 	nginx-ec2nodegroup
+  annotations:
+    CapacityProvisioned: 0.25vCPU 0.5GB
+  labels:
+    app: nginx-ec2nodegroup
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-ec2nodegroup
+  template:
+    metadata:
+      labels:
+        app: nginx-ec2nodegroup
+    spec:
+      containers:
+      - name: nginx-ec2nodegroup
+        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "service-nginx-ec2nodegroup"
+  namespace: 	nginx-ec2nodegroup
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+spec:
+  selector:
+    app: nginx-ec2nodegroup
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
