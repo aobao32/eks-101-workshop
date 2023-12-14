@@ -206,7 +206,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: "service-nginx-ec2nodegroup"
+  name: "nginx-ec2nodegroup"
   namespace: 	nginx-ec2nodegroup
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
@@ -223,46 +223,160 @@ spec:
 
 启动成功后，查看NLB的地址，注意添加Namespace的名称`nginx-ec2nodegroup`，查询服务入口：
 
-```
+```shell
 kubectl get services service-nginx-ec2nodegroup --namespace nginx-ec2nodegroup
 ```
 
 查询结果如下：
 
-```
+```shell
 NAME                         TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE
 service-nginx-ec2nodegroup   LoadBalancer   10.50.0.149   k8s-nginxec2-servicen-7d894c50a4-d88e28f7253c4dc2.elb.ap-southeast-1.amazonaws.com   80:32097/TCP   15m
 ```
 
 使用curl访问NLB的地址，可测试访问成功。
 
-## 三、部署Fargate
+### 4、关于使用ELB不同模式的补充说明
 
-### 1、创建Fargate需要的基础IAM Role
+上述Demo应用的Yaml文件，通过AWS Load Balance Controller，启动了一个Public的也就是Internet-facing的NLB，允许外网接入。这个NLB对接到Pod时候Targate Group使用的是IP模式。当使用EC2 Nodegroup和Fargate时候，对Targate Group的要求有所不同：
 
-Fargate模式下，创建容器使用会调度Pod，因此需要创建Fargate说需要的IAM Role。其过程可以手动在IAM控制台上创建，也可以通过eksctl命令在创建Fargate Profile时候自动创建。本文使用自动创建。
+- 由于K8S的API变化，因此原先基于Node Port方式启动一个NLB的很多API已经失效，或者是被官方列入了向后兼容模式，随时可能在未来版本升级时候失效。由此，推荐EKS集群创建完毕后，立刻安装AWS Load Balance Controller控制器。应用Ingress无论是采用ALB还是NLB+Nginx自建方案，都建议先AWS Load Balance Controller控制器
+- 使用EC2 Nodegroup时候，ELB的Target group模式可以是Instance模式，也可以是IP模式。
+- 使用Fargate时候，ELB的Target group模式必须是指定为IP模式，不支持Instance模式。
 
-### 2、创建EKS Fargate Profile并设定Selector
+本文ELB的Target group均使用IP模式。
 
-执行如下命令创建Fargate Profile、设定Selector且自动创建需要的IAM role。
+## 三、配置Fargate两种使用方式
+
+Fargate模式下，创建容器使用会调度Pod，因此需要创建Fargate所需要的IAM Role。其过程可以手动在IAM控制台上创建，也可以通过eksctl命令在创建Fargate Profile时候自动创建。以本文为例，不需要手动创建，通过eksctl命令配置Fargate即可。
+
+指定Pod在Fargate上运行，有两种Selector模式：
+
+- 指定某Namespace，其上所有Pod都使用Fargate 
+- 指定某Namespace，带有标签的Pod都在Fargate上，此模式也成为混合模式
+
+可任选一使用，也可以同时使用。本文分别介绍这两种模式。
+
+## 四、指定某个Namespace下所有Pod都在Fargate上
+
+### 1、创建EKS Fargate Profile
+
+如下命令指定在Namespace命名空间`fargate-pod`中的所有Pod都运行于Fargate上。
 
 ```shell
-
+eksctl create fargateprofile \
+    --cluster eksworkshop \
+    --name fargate-pod-1 \
+    --namespace fargate-pod
 ```
 
-创建完成。
-
-### 3、编写应用配置Yaml文件指定使用Fargate启动
-
-
+### 2、应用Yaml编写实例
 
 ```yaml
 
 ```
 
-注意：使用Fargate时候，ELB的Target group模式必须是指定为IP模式，不支持Instance模式。
+将以上文件保存为`nginx-fargate-pod.yaml`，然后执行如下命令启动。
 
-## 四、参考资料
+```
+kubectl apply -f nginx-fargate-pod.yaml
+```
+
+### 3、查询Pod运行环境
+
+通过添加`-n`命令指定Namespace，以及添加`-o`命令输出更多参数，即可查询EC2 Nodegroup节点组和Pod运行环境：
+
+```
+kubectl get pods -n fargate-pod -o wide
+```
+
+返回结果如下：
+
+```
+NAME                                 READY   STATUS    RESTARTS   AGE   IP              NODE                                                       NOMINATED NODE   READINESS GATES
+nginx-fargate-pod-7f99d7bbb9-c6js7   1/1     Running   0          50m   172.31.71.134   fargate-ip-172-31-71-134.ap-southeast-1.compute.internal   <none>           <none>
+nginx-fargate-pod-7f99d7bbb9-lsdqf   1/1     Running   0          50m   172.31.61.215   fargate-ip-172-31-61-215.ap-southeast-1.compute.internal   <none>           <none>
+nginx-fargate-pod-7f99d7bbb9-ppwj4   1/1     Running   0          50m   172.31.85.218   fargate-ip-172-31-85-218.ap-southeast-1.compute.internal   <none>           <none>
+```
+
+以上返回结果即可看到，这几个Pod是运行在Fargate Node之上。
+
+## 五、混合模式：指定某个Namespace下仅带有标签的Pod都在Fargate上
+
+### 1、创建EKS Fargate Profile
+
+如下命令指定在Namespace命名空间`mix`中，只有带Lable标签`onfargate=yes`的Pod会运行于Fargate上，其余不带标签的Pod运行在EC2 Nodegroup上。
+
+```shell
+eksctl create fargateprofile \
+    --cluster eksworkshop \
+    --name fargate-pod-2 \
+    --namespace mixed \
+    --labels onfargate=yes
+```
+
+注意：以上Profile只是指定Namespace，但是在EKS上并不会自动创建Namespace。对应的Namepsace需要手工创建，或者随着应用一起创建。
+
+### 2、应用Yaml编写实例
+
+```yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata: 
+  name: mixed
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-mixed-fargate
+  namespace: 	mixed
+  annotations:
+    CapacityProvisioned: 0.25vCPU 0.5GB
+  labels:
+    app: nginx-mixed-fargate
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx-mixed-fargate
+  template:
+    metadata:
+      labels:
+        app: nginx-mixed-fargate
+    spec:
+      containers:
+      - name: nginx-mixed-fargate
+        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "nginx-mixed-fargate"
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  selector:
+    app: nginx-mixed-fargate
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+```
+
+将以上文件保存为``，然后执行如下命令启动。
+
+```
+kubectl apply -f nginx-fargate-pod.yaml
+```
+
+### 3、查询Pod运行环境
+
+
+## 六、参考资料
 
 手工创建Fargate所需的Pod运行IAM Role
 
