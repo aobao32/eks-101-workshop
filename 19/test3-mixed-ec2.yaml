@@ -1,0 +1,40 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-mixed-ec2
+  namespace: test3-mixed
+  labels:
+    app: nginx-mixed-ec2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-mixed-ec2
+  template:
+    metadata:
+      labels:
+        app: nginx-mixed-ec2
+    spec:
+      containers:
+      - name: nginx-mixed-ec2
+        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-mixed-ec2
+  namespace: test3-mixed
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+spec:
+  selector:
+    app: nginx-mixed-ec2
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80

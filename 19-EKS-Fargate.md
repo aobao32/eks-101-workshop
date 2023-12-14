@@ -10,7 +10,7 @@ EKS Fargate是EKS的无服务器运行环境。使用EKS Fargate，可以直接�
 
 ### 2、选择EC2 Nodegroup模式和Fargate模式
 
-EKS的EC2模式和Fargate模式可同时使用。在一个EKS集群内，可同时使用EC2 Nodegroup和Fargate。当拉起一个应用环境的时候，可在Yaml中指定Namespaces或者通过Namespaces+Lable的方式，指定特定Pod跑在EC2 Nodegroup上、并指定特定Pod跑在Fargate上。当然，也可以创建一个仅使用Fargate的EKS集群；也可以给之前创建的仅有EC2 Nodegroup的集群随时添加Fargate模式，这两种方式都是可行的。再操作步骤上是一致的。
+EKS的EC2模式和Fargate模式可同时使用。在一个EKS集群内，可同时使用EC2 Nodegroup和Fargate。当拉起一个应用环境的时候，可在Yaml中指定Namespaces或者通过Namespaces+Label的方式，指定特定Pod跑在EC2 Nodegroup上、并指定特定Pod跑在Fargate上。当然，也可以创建一个仅使用Fargate的EKS集群；也可以给之前创建的仅有EC2 Nodegroup的集群随时添加Fargate模式，这两种方式都是可行的。再操作步骤上是一致的。
 
 从服务架构设计上，推荐使用混合EC2 Nodegroup和Fargate模式的集群。这是因为，部分EKS系统服务，包括kube-dns、aws-load-balancer-controller等组件是需要持续运行的，并非弹性的。如果创建一个仅有Fargate的集群，那么这些控制组件就必须也用Fargate模式长时间运行个，这样相对不划算。
 
@@ -176,15 +176,13 @@ aws-load-balancer-controller   2/2     2            2           89s
 apiVersion: v1
 kind: Namespace
 metadata: 
-  name: nginx-ec2nodegroup
+  name: test1-ec2nodegroup
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-ec2nodegroup
-  namespace: 	nginx-ec2nodegroup
-  annotations:
-    CapacityProvisioned: 0.25vCPU 0.5GB
+  namespace: 	test1-ec2nodegroup
   labels:
     app: nginx-ec2nodegroup
 spec:
@@ -206,8 +204,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: "nginx-ec2nodegroup"
-  namespace: 	nginx-ec2nodegroup
+  name: nginx-ec2nodegroup
+  namespace: test1-ec2nodegroup
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
@@ -221,10 +219,16 @@ spec:
     targetPort: 80
 ```
 
-启动成功后，查看NLB的地址，注意添加Namespace的名称`nginx-ec2nodegroup`，查询服务入口：
+执行如下命令启动服务：
 
 ```shell
-kubectl get services service-nginx-ec2nodegroup --namespace nginx-ec2nodegroup
+kubectl apply -f test1-ec2nodegroup.yaml
+```
+
+启动成功后，查看NLB的地址，注意添加Namespace的名称`test1-ec2nodegroup`，查询服务入口：
+
+```shell
+kubectl get services nginx-ec2nodegroup --namespace test1-ec2nodegroup
 ```
 
 查询结果如下：
@@ -261,92 +265,55 @@ Fargate模式下，创建容器使用会调度Pod，因此需要创建Fargate所
 
 ### 1、创建EKS Fargate Profile
 
-如下命令指定在Namespace命名空间`fargate-pod`中的所有Pod都运行于Fargate上。
+如下命令指定在Namespace命名空间`test2-fargate`中的所有Pod都运行于Fargate上。
 
 ```shell
 eksctl create fargateprofile \
     --cluster eksworkshop \
-    --name fargate-pod-1 \
-    --namespace fargate-pod
-```
-
-### 2、应用Yaml编写实例
-
-```yaml
-
-```
-
-将以上文件保存为`nginx-fargate-pod.yaml`，然后执行如下命令启动。
-
-```
-kubectl apply -f nginx-fargate-pod.yaml
-```
-
-### 3、查询Pod运行环境
-
-通过添加`-n`命令指定Namespace，以及添加`-o`命令输出更多参数，即可查询EC2 Nodegroup节点组和Pod运行环境：
-
-```
-kubectl get pods -n fargate-pod -o wide
-```
-
-返回结果如下：
-
-```
-NAME                                 READY   STATUS    RESTARTS   AGE   IP              NODE                                                       NOMINATED NODE   READINESS GATES
-nginx-fargate-pod-7f99d7bbb9-c6js7   1/1     Running   0          50m   172.31.71.134   fargate-ip-172-31-71-134.ap-southeast-1.compute.internal   <none>           <none>
-nginx-fargate-pod-7f99d7bbb9-lsdqf   1/1     Running   0          50m   172.31.61.215   fargate-ip-172-31-61-215.ap-southeast-1.compute.internal   <none>           <none>
-nginx-fargate-pod-7f99d7bbb9-ppwj4   1/1     Running   0          50m   172.31.85.218   fargate-ip-172-31-85-218.ap-southeast-1.compute.internal   <none>           <none>
-```
-
-以上返回结果即可看到，这几个Pod是运行在Fargate Node之上。
-
-## 五、混合模式：指定某个Namespace下仅带有标签的Pod都在Fargate上
-
-### 1、创建EKS Fargate Profile
-
-如下命令指定在Namespace命名空间`mix`中，只有带Lable标签`onfargate=yes`的Pod会运行于Fargate上，其余不带标签的Pod运行在EC2 Nodegroup上。
-
-```shell
-eksctl create fargateprofile \
-    --cluster eksworkshop \
-    --name fargate-pod-2 \
-    --namespace mixed \
-    --labels onfargate=yes
+    --name test2-fargate \
+    --namespace test2-fargate
 ```
 
 注意：以上Profile只是指定Namespace，但是在EKS上并不会自动创建Namespace。对应的Namepsace需要手工创建，或者随着应用一起创建。
 
+执行如下命令查看Fargate Profile创建结果：
+
+```
+eksctl get fargateprofile --cluster eksworkshop
+```
+
 ### 2、应用Yaml编写实例
+
+编写以下配置文件，在一开始的时候定义Namespace并创建。
 
 ```yaml
 ---
 apiVersion: v1
 kind: Namespace
 metadata: 
-  name: mixed
+  name: test2-fargate
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-mixed-fargate
-  namespace: 	mixed
+  name: nginx-fargate-pod
+  namespace: test2-fargate
   annotations:
     CapacityProvisioned: 0.25vCPU 0.5GB
   labels:
-    app: nginx-mixed-fargate
+    app: nginx-fargate-pod
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
-      app: nginx-mixed-fargate
+      app: nginx-fargate-pod
   template:
     metadata:
       labels:
-        app: nginx-mixed-fargate
+        app: nginx-fargate-pod
     spec:
       containers:
-      - name: nginx-mixed-fargate
+      - name: nginx-fargate-pod
         image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
         ports:
         - containerPort: 80
@@ -354,12 +321,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: "nginx-mixed-fargate"
+  name: nginx-fargate-pod
+  namespace: test2-fargate
   annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
 spec:
   selector:
-    app: nginx-mixed-fargate
+    app: nginx-fargate-pod
   type: LoadBalancer
   ports:
   - protocol: TCP
@@ -367,13 +336,94 @@ spec:
     targetPort: 80
 ```
 
-将以上文件保存为``，然后执行如下命令启动。
+将以上文件保存为`test2-fargate.yaml`，然后执行如下命令启动。
 
-```
-kubectl apply -f nginx-fargate-pod.yaml
+```shell
+kubectl apply -f test2-fargate.yaml
 ```
 
 ### 3、查询Pod运行环境
+
+Fargate创建比现有EC2上直接启动Pod要慢一些，等待2-3分钟后，再查看运行环境。
+
+通过添加`-n`命令指定Namespace，以及添加`-o`命令输出更多参数，即可查询EC2 Nodegroup节点组和Pod运行环境：
+
+```shell
+kubectl get pods -n test2-fargate -o wide
+```
+
+返回结果如下：
+
+```shell
+NAME                                 READY   STATUS    RESTARTS   AGE   IP              NODE                                                       NOMINATED NODE   READINESS GATES
+nginx-fargate-pod-75fcf896d5-2qxz9   1/1     Running   0          71s   172.31.55.250   fargate-ip-172-31-55-250.ap-southeast-1.compute.internal   <none>           <none>
+nginx-fargate-pod-75fcf896d5-wpdjl   1/1     Running   0          71s   172.31.67.70    fargate-ip-172-31-67-70.ap-southeast-1.compute.internal    <none>           <none>
+```
+
+以上返回结果即可看到，Pod是运行在Fargate Node之上。
+
+## 五、混合模式：指定某个Namespace下仅带有标签的Pod都在Fargate上
+
+### 1、创建EKS Fargate Profile
+
+如下命令指定在Namespace命名空间`mix`中，只有带Label标签`runon=fargate`的Pod会运行于Fargate上，其余不带标签的Pod运行在EC2 Nodegroup上。在选择标签时候请注意，如果您定义的标签包含了yaml文件的关键字如`yes`、`true`等，那么请为其加上双引号将其定义为text字符串，否则可能会遇到提示yaml文件处理json格式错误。
+
+```shell
+eksctl create fargateprofile \
+    --cluster eksworkshop \
+    --name test3-mixed \
+    --namespace test3-mixed \
+    --labels runon=fargate
+```
+
+注意：以上Profile只是指定Namespace，但是在EKS上并不会自动创建Namespace。对应的Namepsace需要手工创建，或者随着应用一起创建。
+
+### 2、创建Namespace
+
+定义如下配置文件：
+
+```yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata: 
+  name: test3-mixed
+```
+
+将以上内存保存为`test3-mixed-namespace.yaml`，然后创建之。
+
+```shell
+kubectl apply -f test3-mixed-namespace.yaml
+```
+
+### 3、编写Yaml文件将所有Pod都放在本Namespace下的EC2 Nodegroup上
+
+```yaml
+```
+
+将以上文件保存为``，然后执行如下命令启动。
+
+```shell
+kubectl apply -f 
+```
+
+### 4、编写Yaml文件将所有Pod都放在本Namespace下的Fargate上
+
+```yaml
+```
+
+将以上文件保存为``，然后执行如下命令启动。
+
+```shell
+kubectl apply -f 
+```
+
+### 5、查看Pod运行环境
+
+
+
+### 6、测试应用
+
 
 
 ## 六、参考资料

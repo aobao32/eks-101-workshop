@@ -1,0 +1,44 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-mixed-fargate
+  namespace: test3-mixed
+  labels:
+    app: nginx-mixed-fargate
+    runon: fargate
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-mixed-fargate
+  template:
+    metadata:
+      labels:
+        app: nginx-mixed-fargate
+        runon: fargate
+    spec:
+      containers:
+      - name: nginx-mixed-fargate
+        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-mixed-fargate
+  namespace: test3-mixed
+  labels:
+    runon: fargate
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+spec:
+  selector:
+    app: nginx-mixed-fargate
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
