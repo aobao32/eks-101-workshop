@@ -228,7 +228,7 @@ kubectl apply -f test1-ec2nodegroup.yaml
 启动成功后，查看NLB的地址，注意添加Namespace的名称`test1-ec2nodegroup`，查询服务入口：
 
 ```shell
-kubectl get services nginx-ec2nodegroup --namespace test1-ec2nodegroup
+kubectl get services --namespace test1-ec2nodegroup
 ```
 
 查询结果如下：
@@ -298,8 +298,6 @@ kind: Deployment
 metadata:
   name: nginx-fargate-pod
   namespace: test2-fargate
-  annotations:
-    CapacityProvisioned: 0.25vCPU 0.5GB
   labels:
     app: nginx-fargate-pod
 spec:
@@ -315,6 +313,10 @@ spec:
       containers:
       - name: nginx-fargate-pod
         image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        resources:
+          requests:
+            cpu: "0.5"
+            memory: "750M"
         ports:
         - containerPort: 80
 ---
@@ -399,34 +401,228 @@ kubectl apply -f test3-mixed-namespace.yaml
 ### 3、编写Yaml文件将所有Pod都放在本Namespace下的EC2 Nodegroup上
 
 ```yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-mixed-ec2
+  namespace: test3-mixed
+  labels:
+    app: nginx-mixed-ec2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-mixed-ec2
+  template:
+    metadata:
+      labels:
+        app: nginx-mixed-ec2
+    spec:
+      containers:
+      - name: nginx-mixed-ec2
+        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-mixed-ec2
+  namespace: test3-mixed
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+spec:
+  selector:
+    app: nginx-mixed-ec2
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
 ```
 
-将以上文件保存为``，然后执行如下命令启动。
+将以上文件保存为`test3-mixed-ec2.yaml`，然后执行如下命令启动。
 
 ```shell
-kubectl apply -f 
+kubectl apply -f test3-mixed-ec2.yaml
 ```
 
 ### 4、编写Yaml文件将所有Pod都放在本Namespace下的Fargate上
 
 ```yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-mixed-fargate
+  namespace: test3-mixed
+  labels:
+    app: nginx-mixed-fargate
+    runon: fargate
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-mixed-fargate
+  template:
+    metadata:
+      labels:
+        app: nginx-mixed-fargate
+        runon: fargate
+    spec:
+      containers:
+      - name: nginx-mixed-fargate
+        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        resources:
+          requests:
+            cpu: "1"
+            memory: "1750M"
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-mixed-fargate
+  namespace: test3-mixed
+  labels:
+    runon: fargate
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+spec:
+  selector:
+    app: nginx-mixed-fargate
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
 ```
 
-将以上文件保存为``，然后执行如下命令启动。
+将以上文件保存为`test3-mixed-fargate.yaml`，然后执行如下命令启动。
 
 ```shell
-kubectl apply -f 
+kubectl apply -f test3-mixed-fargate.yaml
 ```
 
 ### 5、查看Pod运行环境
 
+```shell
+kubectl get pods -n test3-mixed -o wide
+```
 
+返回结果如下：
+
+```shell
+NAME                                   READY   STATUS    RESTARTS   AGE   IP              NODE                                                      NOMINATED NODE   READINESS GATES
+nginx-mixed-ec2-5c68c7c8df-8fmng       1/1     Running   0          11h   172.31.85.129   ip-172-31-93-72.ap-southeast-1.compute.internal           <none>           <none>
+nginx-mixed-ec2-5c68c7c8df-pz7rw       1/1     Running   0          11h   172.31.53.255   ip-172-31-53-43.ap-southeast-1.compute.internal           <none>           <none>
+nginx-mixed-fargate-747577644f-9lnlt   1/1     Running   0          10h   172.31.61.98    fargate-ip-172-31-61-98.ap-southeast-1.compute.internal   <none>           <none>
+nginx-mixed-fargate-747577644f-n2f2x   1/1     Running   0          10h   172.31.84.94    fargate-ip-172-31-84-94.ap-southeast-1.compute.internal   <none>           <none>
+```
+
+以上结果即可看到本Namespace下同时存在EC2节点和Fargate节点。
+
+使用如下命令指定Label，查询配置了Label的Pod：
+
+```shell
+kubectl get pods -n test3-mixed -l runon -o wide
+```
+
+可以看到返回结果就是带有Label的两个Pod。
+
+```shell
+NAME                                   READY   STATUS    RESTARTS   AGE   IP             NODE                                                      NOMINATED NODE   READINESS GATES
+nginx-mixed-fargate-747577644f-9lnlt   1/1     Running   0          10h   172.31.61.98   fargate-ip-172-31-61-98.ap-southeast-1.compute.internal   <none>           <none>
+nginx-mixed-fargate-747577644f-n2f2x   1/1     Running   0          10h   172.31.84.94   fargate-ip-172-31-84-94.ap-southeast-1.compute.internal   <none>           <none>
+```
 
 ### 6、测试应用
 
+执行如下命令，获取本Namespace对应的NLB入口。
 
+```shell
+kubectl get services --namespace test3-mixed
+```
 
-## 六、参考资料
+返回结果如下：
+
+```shell
+NAME                  TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE
+nginx-mixed-ec2       LoadBalancer   10.50.0.17    k8s-test3mix-nginxmix-61febb02e3-ae45b4239866c787.elb.ap-southeast-1.amazonaws.com   80:31500/TCP   11h
+nginx-mixed-fargate   LoadBalancer   10.50.0.113   k8s-test3mix-nginxmix-9c4bce1473-4ae758d1b8d8bc46.elb.ap-southeast-1.amazonaws.com   80:31839/TCP   10h
+```
+
+分别使用curl测试之，确认正常。
+
+### 7、小结
+
+回顾以上实验，我们分别使用了传统的EC2 Nodegroup（Test1），指定Namespace部署Fargate（Test），在同一个Namespace下通过Label标签区分Fargate（Test3）。
+
+通过图形管理工具，如K9S，可以清晰的看到Pod分布和对应的Node。带有Fargate字样的是Fargate拉起的Node。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/fargate/fargate-01.png)
+
+## 六、Fargate资源分配说明
+
+### 1、在Yaml中定义Pod使用的资源量
+
+指定Fargate的资源，是通过`Resource`标签的`request`或`limit`值指定。在使用Fargate的配置文件中，如果不指定申请的资源大小，则Fargate默认分配0.25vCPU和0.5GB内存。
+
+在上述配置文件中，可看到如下定义：
+
+```yaml
+          requests:
+            cpu: "1"
+            memory: "1750M"
+```
+
+这就是申请的Fargate Pod资源。但是请注意，Fargate计费是按照实际创建的资源计费，二者之间有一个Gap，请看如下分析。
+
+### 2、EKS Fargate支持的Pod资源量组合
+
+EKS Fargate可以使用的资源组合范围如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/fargate/fargate-02.png)
+
+### 3、关于系统预留资源和Pod资源量规划
+
+在EC2 Nodegroup上，每个EC2节点都会预留一定的资源，用于Kube-proxy/kube-dns等后台服务。
+
+在Fargate上，每个Pod运行在一个Fargate环境中，这个Fargate也需要预留256MB内存用于系统进程。因此，申请Pod时候，EKS实际生成的Fargate都会自动添加256MB内存，并且向上凑整进位，才是真实的资源量。
+
+这里举例如下：
+
+- 在Yaml文件中申请`0.25vCPU/512MB`内存，Fargate将自动添加256MB内存等于768MB，根据上表规格清单中查询，向上进一位将真实分配`0.25vCPU/1GB`资源；
+- 在Yaml文件中申请`0.5vCPU/1GB`内存，Fargate将自动添加256MB内存等于1280MB，根据上表规格清单中查询，向上进一位将真实分配`0.5vCPU/2GB`资源；
+- 在Yaml文件中申请`1vCPU/1750MB`内存，Fargate将自动添加256MB内存等于2006MB（2GB是2048MB），根据上表规格清单中查询，向上进一位将真实分配`1vCPU/2GB`资源；
+- 在Yaml文件中申请`1vCPU/4GB`内存，Fargate将自动添加256MB内存等于4352MB，根据上表规格清单中查询，向上进一位将真实分配`1vCPU/5GB`内存
+- 在Yaml文件中申请`1vCPU/8GB`内存，Fargate将自动添加256MB内存等于8448MB，根据上表规格清单中查询，向上进一位将真实分配9GB内存；又因为1vCPU最大支持8GB内存，因此vCPU也会向上进位取整，最终真实分配是`2vCPU/9GB`内存；
+
+其他情况以此类推。
+
+### 4、查询现有Fargate Pod分配的资源
+
+执行如下命令，请替换其中的Namespace和Pod名称为真实值。
+
+```shell
+kubectl describe pod --namespace test3-mixed nginx-mixed-fargate-7d67455886-chwzg
+```
+
+在输出结果中，可以看到如下一条：
+
+```shell
+Annotations:          CapacityProvisioned: 1vCPU 2GB
+```
+
+则表示本Pod分配的资源是1vCPU/2GB，实际计费也按照这个资源计费。
+
+### 5、关于登录到Pod后使用Shell查询的系统资源
+
+## 七、参考资料
 
 手工创建Fargate所需的Pod运行IAM Role
 
@@ -439,3 +635,7 @@ EKS Mixed Mode Deployment Fargate Serverless & EC2 Worker Nodes - 3 Apps ¶
 eksctl - EKS Fargate Support¶
 
 [https://eksctl.io/usage/fargate-support/]()
+
+Fargate Pod configuration
+
+[https://docs.aws.amazon.com/eks/latest/userguide/fargate-pod-configuration.html]()

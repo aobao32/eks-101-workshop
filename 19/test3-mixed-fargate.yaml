@@ -21,6 +21,10 @@ spec:
       containers:
       - name: nginx-mixed-fargate
         image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        resources:
+          requests:
+            cpu: "1"
+            memory: "1750M"
         ports:
         - containerPort: 80
 ---
