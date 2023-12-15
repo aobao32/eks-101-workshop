@@ -42,6 +42,10 @@ Level 200：
 
 [实验17、使用EKS控制台的Addon功能升级EKS VPC CNI](https://github.com/aobao32/eks-101-workshop/blob/main/17-EKS-addon.md)
 
+[实验18、测试EKS服务上Pod使用VPC CNI对网络吞吐性能的影响](https://github.com/aobao32/eks-101-workshop/blob/main/18-EKS-Network-performance.md)
+
+[实验19、使用EKS Fargate创建无服务器容器服务](https://github.com/aobao32/eks-101-workshop/blob/main/19-EKS-Fargate.md)
+
 END
 
 ---

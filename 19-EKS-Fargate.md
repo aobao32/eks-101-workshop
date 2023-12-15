@@ -85,7 +85,7 @@ cloudWatch:
 将以上配置文件保存为`eks-private-subnet.yaml`，然后执行如下命令启动集群。
 
 ```shell
-eksctl create cluster -f eks-private-subnet.yaml.yaml
+eksctl create cluster -f eks-private-subnet.yaml
 ```
 
 集群启动完成。这个集群将在私有子网启动，包括2个t3.xlarge节点组成NodeGroup。
@@ -261,7 +261,7 @@ Fargate模式下，创建容器使用会调度Pod，因此需要创建Fargate所
 
 可任选一使用，也可以同时使用。本文分别介绍这两种模式。
 
-## 四、指定某个Namespace下所有Pod都在Fargate上
+## 四、选择Namespace的方式让Pod运行在Fargate上
 
 ### 1、创建EKS Fargate Profile
 
@@ -364,7 +364,7 @@ nginx-fargate-pod-75fcf896d5-wpdjl   1/1     Running   0          71s   172.31.6
 
 以上返回结果即可看到，Pod是运行在Fargate Node之上。
 
-## 五、混合模式：指定某个Namespace下仅带有标签的Pod都在Fargate上
+## 五、混合模式：指定某个Namespace下仅带有标签的Pod运行在Fargate上
 
 ### 1、创建EKS Fargate Profile
 
@@ -398,7 +398,7 @@ metadata:
 kubectl apply -f test3-mixed-namespace.yaml
 ```
 
-### 3、编写Yaml文件将所有Pod都放在本Namespace下的EC2 Nodegroup上
+### 3、编写Yaml文件本Namespace下不带有标签的Pod运行在EC2 Nodegroup上
 
 ```yaml
 ---
@@ -449,7 +449,7 @@ spec:
 kubectl apply -f test3-mixed-ec2.yaml
 ```
 
-### 4、编写Yaml文件将所有Pod都放在本Namespace下的Fargate上
+### 4、编写Yaml文件本Namespace下带有标签的Pod运行在Fargate上
 
 ```yaml
 ---
