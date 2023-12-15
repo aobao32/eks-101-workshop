@@ -622,6 +622,15 @@ Annotations:          CapacityProvisioned: 1vCPU 2GB
 
 ### 5、关于登录到Pod后使用Shell查询的系统资源
 
+官方文档中的说法，Fargate Pod和实际分配的Farget环境是不一样的，一般实际分配的规格会更大，但是二者没有直接关系。
+
+    There is no correlation between the size of the Pod 
+    running on Fargate and the node size reported by 
+    Kubernetes with kubectl get nodes. The reported node 
+    size is often larger than the Pod's capacity. 
+
+举例来说，Yaml中申请的`1vCPU/3750MB`，实际分配的是`1vCPU/4GB`，使用上文的`kubectl describe pod`命令查看其`Annotations`中，也是显示`1vCPU/4GB`，这时候账单也是按照`1vCPU/4GB`计费的。但是，登录到Pod的Shell中，执行`free -m`命令查看内存，查看到的内存值可能大于4GB，有可能是6GB或者8GB。这是正常的。Fargate将只按照`Annotations`中显示的计费。
+
 ## 七、参考资料
 
 手工创建Fargate所需的Pod运行IAM Role
@@ -636,6 +645,6 @@ eksctl - EKS Fargate Support¶
 
 [https://eksctl.io/usage/fargate-support/]()
 
-Fargate Pod configuration
+Fargate Pod configuration 机型和计费
 
 [https://docs.aws.amazon.com/eks/latest/userguide/fargate-pod-configuration.html]()
