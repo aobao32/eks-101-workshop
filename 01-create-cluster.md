@@ -40,12 +40,12 @@ choco install -y eksctl kubernetes-cli kubernetes-helm k9s jq curl wget vim 7zip
 
 在Linux下安装eks工具，包括eksctl和kubectl两个。
 
-Intel架构的执行如下命令：
+X86_64架构的执行如下命令：
 
 ```
 curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
 sudo mv /tmp/eksctl /bin
-curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/linux/amd64/kubectl
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.28.3/2023-11-14/bin/linux/amd64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
@@ -56,7 +56,7 @@ Graviton2的ARM架构的Linux执行如下命令：
 ```
 curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_arm64.tar.gz" | tar xz -C /tmp
 sudo mv /tmp/eksctl /bin
-curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/linux/arm64/kubectl
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.28.3/2023-11-14/bin/linux/arm64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
@@ -79,12 +79,10 @@ brew upgrade eksctl && { brew link --overwrite eksctl; } || { brew tap weavework
 eksctl version
 ```
 
-最后下载kubectl工具，这里提供的是M1系列处理器的MacBook Pro使用的ARM版本的kubectl下载：
+最后安装kubectl工具，也使用brew安装：
 
 ```
-curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.27.1/2023-04-19/bin/darwin/amd64/kubectl
-kubectl version --short --client
-chmod 755 kubectl
+brew reinstall kubernetes-cli
 ```
 
 客户端准备完毕。
