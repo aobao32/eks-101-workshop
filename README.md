@@ -46,6 +46,8 @@ Level 200：
 
 [实验19、使用EKS Fargate创建无服务器容器服务](https://github.com/aobao32/eks-101-workshop/blob/main/19-EKS-Fargate.md)
 
+[实验20、使用Kubecost管理EKS成本](https://github.com/aobao32/eks-101-workshop/blob/main/20-Kubecost.md)
+
 END
 
 ---
