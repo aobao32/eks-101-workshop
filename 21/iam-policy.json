@@ -1,0 +1,26 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": "ssm:SendCommand",
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:ec2:ap-southeast-1:133129065110:instance/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "ec2:ResourceTag/*": [
+                        "eksworkshop"
+                    ]
+                }
+            }
+        },
+        {
+            "Action": "ssm:SendCommand",
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:ssm:ap-southeast-1:*:document/AWS-RunShellScript"
+            ]
+        }
+    ]
+}

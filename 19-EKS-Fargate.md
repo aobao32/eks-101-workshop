@@ -20,9 +20,7 @@ EKS的EC2模式和Fargate模式可同时使用。在一个EKS集群内，可同�
 
 ### 1、集群创建
 
-如果是为之前已经使用EC2 Nodegroup的EKS集群添加Fargate，那么可以跳过本章节。如果目前还没有任何EKS集群，那么这里可以创建一个不含EC2 Nodegroup的空白EKS集群，稍后为其配置Fargate模式。
-
-相关工具包括eksctl、kubectl等脚本的下载和使用请参考[本篇]()博客。
+现在创建一个EKS集群，使用两台EC2 Nodegroup节点，稍后为其配置Fargate模式。相关工具包括eksctl、kubectl等脚本的下载和使用请参考[本篇](https://blog.bitipcman.com/eks-workshop-101-part1/)博客。
 
 定义如下配置文件：
 

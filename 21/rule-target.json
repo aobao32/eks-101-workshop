@@ -1,0 +1,14 @@
+{
+    "Targets": [{
+        "Id": "Id4000985d-1b4b-4e14-8a45-b04103f9871b",
+        "Arn": "arn:aws:ssm:ap-southeast-1::document/AWS-RunShellScript",
+        "RoleArn": "arn:aws:iam::133129065110:role/ecr-push-cache",
+        "Input": "{\"commands\":[\"tag=$(aws ecr describe-images --repository-name bigimage --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' --output text)\",\"sudo ctr -n k8s.io images pull -u AWS:$(aws ecr get-login-password) 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:$tag\"]}",
+        "RunCommandParameters": {
+            "RunCommandTargets": [{
+                "Key": "tag:Name",
+                "Values": ["eksworkshop-nodegroup-Node"]
+            }]
+        }
+    }]
+}
