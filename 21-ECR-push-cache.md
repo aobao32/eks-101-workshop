@@ -317,23 +317,30 @@ It took approximately 2 seconds for bigimage2-56bb8d5d6-6qw49 to boot up and thi
 
 花费时间：5秒左右。由此可看出，缓存明显提升了启动速度。
 
-### 4、测试视频
+### 4、测试过程的录屏演示
 
 ![](https://video.bitipcman.com/eks-pull-cache.mp4)
 
-### 5、测试小结
+### 5、测试流程小结
 
 整个流程小结如下：
 
-1、用Amazon linux 2 docker镜像，体积大约是100MB
-2、从官网下载Amazon linxu 2023的ova虚拟机镜像版本，向docker内放入8个虚拟机镜像，每个1.2GB，总容量强行凑到10GB，然后build docker成功
-3、docker上传到ECR后，ECR自动压缩，在ECR界面上显式为3.5GB
-4、在EC2 nodegroup是t3.xlarge机型上（网卡up-to-5Gbps），node的EBS是100GB的gp3磁盘，拉起应用共花费1分45秒启动成功
-5、在应用配置文件yaml中指定可利用缓存，使用相同image拉起新应用，大概不到5秒钟启动完毕
+- 1、用Amazon linux 2 docker镜像，体积大约是100MB
+- 2、从官网下载Amazon linxu 2023的ova虚拟机镜像版本，向docker内放入8个虚拟机镜像，每个1.2GB，总容量强- 行凑到10GB，然后build docker成功
+- 3、docker上传到ECR后，ECR自动压缩，在ECR界面上显式为3.5GB
+- 4、在EC2 nodegroup是t3.xlarge机型上（网卡up-to-5Gbps），node的EBS是100GB的gp3磁盘，拉起应用共花费1分45秒启动成功
+- 5、在应用配置文件yaml中指定可利用缓存，使用相同image拉起新应用，大概不到5秒钟启动完毕
 
-## 四、使用EventBridge构建预加载
+## 四、使用EventBridge进行预加载
 
 前文介绍过，针对EKS的EC2 Nodegroup，可以使用预加载机制，通过EventBridge触发。
+
+在实际使用EKS过程中，有两种场景需要考虑：
+
+- 在ECR上发布最新版镜像后，现有Nodegroup节点已经缓存了旧版本的镜像，需要预加载最新版做缓存 —— EventBridge + System Manager RunCommend ；
+- EKS的Nodegroup扩容，新增了新的EC2节点，此时EC2节点上还没有任何一个版本做过缓存，需要预加载最新版做缓存 —— EventBridge + System Manager State Manager 。
+
+两种场景的配置过程如下。
 
 ### 1、创建EventBridge要使用的IAM Role
 
@@ -471,25 +478,25 @@ aws events put-rule --cli-input-json file://event-rule.json --region ap-southeas
 
 接下来继续配置规则的Target对象。
 
-### 4、配置EventBridge规则的Target
+### 4、配置EventBridge规则的Target（用于现有EC2预加载最新版镜像）
 
 准备如下一段Target规则，其中多处要替换：
 
 ```json
-{
-    "Targets": [{
-        "Id": "Id4000985d-1b4b-4e14-8a45-b04103f9871b",
-        "Arn": "arn:aws:ssm:ap-southeast-1::document/AWS-RunShellScript",
-        "RoleArn": "arn:aws:iam::133129065110:role/ecr-push-cache",
-        "Input": "{\"commands\":[\"tag=$(aws ecr describe-images --repository-name bigimage --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' --output text)\",\"sudo ctr -n k8s.io images pull -u AWS:$(aws ecr get-login-password) 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:$tag\"]}",
-        "RunCommandParameters": {
-            "RunCommandTargets": [{
-                "Key": "tag:Name",
-                "Values": ["eksworkshop-nodegroup-Node"]
-            }]
-        }
-    }]
-}
+  {
+      "Targets": [{
+          "Id": "Id4000985d-1b4b-4e14-8a45-b04103f9871b",
+          "Arn": "arn:aws:ssm:ap-southeast-1::document/AWS-RunShellScript",
+          "RoleArn": "arn:aws:iam::133129065110:role/ecr-push-cache",
+          "Input": "{\"commands\":[\"tag=$(aws ecr describe-images --repository-name bigimage --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' --output text)\",\"sudo ctr -n k8s.io images pull -u AWS:$(aws ecr get-login-password) 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:$tag\"]}",
+          "RunCommandParameters": {
+              "RunCommandTargets": [{
+                  "Key": "tag:Name",
+                  "Values": ["eksworkshop-managed-ng-Node"]
+              }]
+          }
+      }]
+  }
 ```
 
 替换的内容如下：
@@ -497,11 +504,11 @@ aws events put-rule --cli-input-json file://event-rule.json --region ap-southeas
 - Arn部分的Region代号要替换
 - RoleArn里边的Region代号、IAM Role名称要替换
 - Input中的ECR仓库名称要替换（多处），Region代号要替换（多处）
-- RunCommandParameters中的集群名称要替换（本文是`eksworkshop`，替换时候要保留`-nodegroup-Node`这个后缀）
+- RunCommandParameters中的集群名称要替换（本文是`eksworkshop`，替换时候要保留`-managed-ng-Node`这个后缀）
 
 替换后效果如下：
 
-![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-07.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-06-2.png)
 
 将其保存为`rule-targe.json`，然后使用AWSCLI如下命令将这个规则配置到EventBridge的Rule上。请注意替换上一步使用的Rule规则名称，文件名和对应region的正确。执行如下命令：
 
@@ -520,11 +527,11 @@ aws events put-targets --rule ecr-push-cache --cli-input-json file://rule-target
 
 在配置完成后，通过EventBridge控制台，就可以看到规则下能显示出来target了。如下截图。
 
-![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-06.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-07-2.png)
 
-### 5、配置System Manager的State Manager任务
+### 5、配置System Manager的State Manager任务（用于新扩容的EC2预加载最新版镜像）
 
-编辑如下一段配置文件，替换其中的关键字，包括Targets下的集群名称，commands里边的ECR仓库名称、集群名称等。最后一个参数`AssociationName`是最终在System Manager上创建后显示的名称，可自定义输入，后续用于查找和区分任务。
+编辑如下一段配置文件，替换其中的关键字，包括Targets下的集群名称（保留`-managed-ng-Node`作为后缀）替换，commands里边的Region代号、ECR仓库名称等。最后一个参数`AssociationName`是最终在System Manager上创建后显示的名称，可自定义输入，后续用于查找和区分任务。
 
 ```json
 {
@@ -532,7 +539,7 @@ aws events put-targets --rule ecr-push-cache --cli-input-json file://rule-target
   "Targets": [
     {
       "Key": "tag:Name",
-      "Values": ["eksworkshop-nodegroup-Node"]
+      "Values": ["eksworkshop-managed-ng-Node"]
     }
   ],
   "Parameters": {
@@ -547,9 +554,9 @@ aws events put-targets --rule ecr-push-cache --cli-input-json file://rule-target
 
 替换效果如下截图。
 
-![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-08.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-08-2.png)
 
-将其保存为`ssm-command.json`，请注意替换上一步使用的Rule规则名称，文件名和对应region的正确。执行如下命令：
+将其保存为`ssm-command.json`，构建如下AWSCLI命令，请注意替换上一步使用的Rule规则名称，文件名和对应region的正确。执行如下命令：
 
 ```shell
 aws ssm create-association --cli-input-json file://ssm-command.json --region ap-southeast-1
@@ -580,7 +587,7 @@ aws ssm create-association --cli-input-json file://ssm-command.json --region ap-
             {
                 "Key": "tag:Name",
                 "Values": [
-                    "eksworkshop-nodegroup-Node"
+                    "eksworkshop-managed-ng-Node"
                 ]
             }
         ],
@@ -602,21 +609,120 @@ aws ssm create-association --cli-input-json file://ssm-command.json --region ap-
 
 现在来验证整个机制工作正常。
 
-## 五、f
+## 五、验证预缓存机制生效
 
 这里验证两个场景：
 
-- 1、发布新版镜像到ECR，观察所有EC2 Nodegroup是否会自动获取新镜像作为缓存；
-- 2、集群变配，增加新的EC2 Nodegroup到集群，观察新的EC2 Nodegroup是否会自动获取新镜像作为缓存；
+- 1、现有EC2 Nodegroup不变，之前启动过旧版本，现在发布新版镜像到ECR，观察所有EC2 Nodegroup是否会自动获取新镜像作为缓存；
+- 2、集群变配，增加新的EC2 Nodegroup到集群，观察新的EC2 Nodegroup是否会自动获取新镜像作为缓存。
 
-### 1、新发布新版镜像到ECR
+### 1、新发布新版镜像到ECR后查看预加载
 
+现在修改容器镜像定义，将其中的大文件改名，即可触发生成新的层（layer）。如下截图。修改后上传到ECR。
 
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-11.png)
 
+进入ECR界面，确认最新版上传成功。
 
-### 2、集群变配增加新的EC2 Nodegroup节点
+执行如下命令，确认预加载是否成功。
 
+```shell
+aws ssm list-command-invocations --details \
+  --filter "[{\"key\": \"DocumentName\", \"value\": \"arn:aws:ssm:ap-southeast-1::document/AWS-RunShellScript\"}]" \
+  --region ap-southeast-1
+```
 
+返回结果如下表示执行成功，正在加载中：
+
+```json
+{
+    "CommandInvocations": [
+        {
+            "CommandId": "617e3255-ddae-41f1-9cf0-9d440e2ed594",
+            "InstanceId": "i-0cea3f7b2c93968d0",
+            "InstanceName": "ip-172-31-53-43.ap-southeast-1.compute.internal",
+            "Comment": "",
+            "DocumentName": "arn:aws:ssm:ap-southeast-1::document/AWS-RunShellScript",
+            "DocumentVersion": "$DEFAULT",
+            "RequestedDateTime": "2023-12-26T23:23:16.835000+08:00",
+            "Status": "Success",
+            "StatusDetails": "Success",
+            "StandardOutputUrl": "",
+            "StandardErrorUrl": "",
+            "CommandPlugins": [
+                {
+                    "Name": "aws:runShellScript",
+                    "Status": "Success",
+                    "StatusDetails": "Success",
+                    "ResponseCode": 0,
+                    "ResponseStartDateTime": "2023-12-26T23:23:17.010000+08:00",
+                    "ResponseFinishDateTime": "2023-12-26T23:23:19.126000+08:00",
+                    "Output": "133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:6: resolving      |\u001b[32m\u001b[0m--------------------------------------| \nelapsed: 0.1 s                                                total:   0.0 B (0.0 B/s)                                         \n133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:6:                     resolved       |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nmanifest-sha256:3c19f93e9afadec0642739284d6de1ec30e664d4e23556c26e471b52663592e0: done           |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nlayer-sha256:a9b83078f411c227d05f22f80d86d4e39633a9d086b2bc016026c958716ed960:    done           |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nlayer-sha256:afaad9788645da2e5b4c9c362c0a952273b0175d1809530e3edd975d401ec667:    done           |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nlayer-sha256:81c894a2e8d3d6d5b53909a6e5e1dbd8fff112528736262585403a7395bbb099:    done           |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nlayer-sha256:acf174ffa6c76e77d73ba88d7db6ba6f14052e82088447d739951511b7662b31:    done           |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nconfig-sha256:030bc9b779c05f02daf7d0e362cb5d16032f2a84f736c30eca1ece950e74d5dc:   done           |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nlayer-sha256:994cb88ff790af5dd5ca5db37db091cfbcef49f7ba6d51c8998a779d9debb584:    done           |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nlayer-sha256:bbb5b4eb3b657fc15c2f54e8893ed2cff3aaf9e0344c360c8e9be1c8ff6cb099:    done           |\u001b[32m++++++++++++++++++++++++++++++++++++++\u001b[0m| \nlayer-sha256:6ebddf7084e9402a3ba6cf1360703e12633f9c49f51772f99c298cd1048d728e:    done           |\u001b[32m++++++++++++++++++++++++++++++++++
+++++\u001b[0m| \nelapsed: 0.2 s                                                                    total:   0.0 B (0.0 B/s)                                         \nunpacking linux/amd64 sha256:3c19f93e9afadec0642739284d6de1ec30e664d4e23556c26e471b52663592e0...\ndone: 11.718685ms\t\n",
+                    "StandardOutputUrl": "",
+                    "StandardErrorUrl": "",
+                    "OutputS3Region": "ap-southeast-1",
+                    "OutputS3BucketName": "",
+                    "OutputS3KeyPrefix": ""
+                }
+            ],
+            "ServiceRole": "",
+            "NotificationConfig": {
+                "NotificationArn": "",
+                "NotificationEvents": [],
+                "NotificationType": ""
+            },
+            "CloudWatchOutputConfig": {
+                "CloudWatchLogGroupName": "",
+                "CloudWatchOutputEnabled": false
+            }
+        },
+```
+
+如果返回一个空的大括号，表示配置错误，没有正确执行。
+
+使用如下命令通过Session Manager在EC2 Nodegroup上执行查询，确认镜像是否缓存成功。
+
+```shell
+aws ec2 describe-instances \
+    --filters "Name=tag:eks:cluster-name,Values=eksworkshop" "Name=tag:eks:nodegroup-name,Values=managed-ng" \
+    --query "Reservations[*].Instances[*].InstanceId" \
+    --output text \
+    --region ap-southeast-1 | xargs -I {} aws ssm start-session \
+    --target {} \
+    --document-name AWS-StartInteractiveCommand \
+    --parameters "command=echo \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) && sudo ctr -n k8s.io images ls | grep bigimage" \
+    --region ap-southeast-1
+```
+
+在上述其中，需要替换：
+
+- 替换`--filters`中第1个Values是集群名称，本例为`eksworkshop`
+- 替换`--filters`中第2个Values是Nodegroup的标签，本例为`managed-ng`
+- 替换region（有两处）
+- 替换ECR容器镜像仓库的名称，在`parameters`末尾，本例为`bigimage`
+
+执行后，返回结果如下表示查询到缓存：
+
+```shell
+Starting session with SessionId: pcman-0d6a82887247367cf
+
+133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:1                                                                                              application/vnd.docker.distribution.manifest.v2+json      sha256:52ad7265deccdafea6bb97874df28d02748e84bd84c6b43c67732a9284280fc5 95.6 MiB  linux/amd64                           io.cri-containerd.image=managed
+133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:3                                                                                              application/vnd.docker.distribution.manifest.v2+json      sha256:53aa09537a4f212d3814f87995424ed4e88969e84f8754a3f2ec4c26eec433ed 3.3 GiB   linux/amd64                           io.cri-containerd.image=managed
+133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:6                                                                                              application/vnd.docker.distribution.manifest.v2+json      sha256:3c19f93e9afadec0642739284d6de1ec30e664d4e23556c26e471b52663592e0 207.9 MiB linux/amd64                           io.cri-containerd.image=managed
+133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage@sha256:52ad7265deccdafea6bb97874df28d02748e84bd84c6b43c67732a9284280fc5                        application/vnd.docker.distribution.manifest.v2+json      sha256:52ad7265deccdafea6bb97874df28d02748e84bd84c6b43c67732a9284280fc5 95.6 MiB  linux/amd64                           io.cri-containerd.image=managed
+133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage@sha256:53aa09537a4f212d3814f87995424ed4e88969e84f8754a3f2ec4c26eec433ed                        application/vnd.docker.distribution.manifest.v2+json      sha256:53aa09537a4f212d3814f87995424ed4e88969e84f8754a3f2ec4c26eec433ed 3.3 GiB   linux/amd64                           io.cri-containerd.image=managed
+
+Exiting session with sessionId: pcman-0d6a82887247367cf.
+Starting session with SessionId: pcman-01c9b3556a3ccf42c
+Cannot perform start session: EOF
+```
+
+由此可看到，节点已经加载了缓存。
+
+### 2、集群变配增加新的EC2 Nodegroup节点后查看预加载
+
+待更新。
 
 ## 六、参考文档
 

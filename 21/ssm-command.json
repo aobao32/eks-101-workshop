@@ -3,7 +3,7 @@
   "Targets": [
     {
       "Key": "tag:Name",
-      "Values": ["eksworkshop-nodegroup-Node"]
+      "Values": ["eksworkshop-managed-ng-Node"]
     }
   ],
   "Parameters": {
