@@ -48,6 +48,8 @@ Level 200：
 
 [实验20、使用Kubecost管理EKS成本](https://github.com/aobao32/eks-101-workshop/blob/main/20-Kubecost.md)
 
+[实验21、使用预加载机制加速EC2 Nodegroup上大镜像的启动速度](https://github.com/aobao32/eks-101-workshop/blob/main/21-ECR-push-cache.md)
+
 END
 
 ---

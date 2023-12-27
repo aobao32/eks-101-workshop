@@ -2,12 +2,12 @@
 
 ## 目录
 
-一、背景
-二、测试环境准备
-三、应用Yaml是否打开缓存开关的对比
-四、使用EventBridge构建预加载
-五、验证预缓存机制生效
-六、参考文档
+- 一、背景
+- 二、测试环境准备
+- 三、应用Yaml是否打开缓存开关的对比
+- 四、使用EventBridge构建预加载
+- 五、验证预缓存机制生效
+- 六、参考文档
 
 ## 一、背景
 
@@ -618,11 +618,7 @@ aws ssm create-association --cli-input-json file://ssm-command.json --region ap-
 
 ### 1、新发布新版镜像到ECR后查看预加载
 
-现在修改容器镜像定义，将其中的大文件改名，即可触发生成新的层（layer）。如下截图。修改后上传到ECR。
-
-![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-11.png)
-
-进入ECR界面，确认最新版上传成功。
+现在修改容器镜像定义，将其中的大文件改名，即可触发生成新的层（layer）。修改后上传到ECR。进入ECR界面，确认最新版上传成功。
 
 执行如下命令，确认预加载是否成功。
 
@@ -632,7 +628,7 @@ aws ssm list-command-invocations --details \
   --region ap-southeast-1
 ```
 
-返回结果如下表示执行成功，正在加载中：
+如果返回一个空的大括号，表示配置错误，没有正确执行。返回结果如下表示执行成功：
 
 ```json
 {
@@ -679,9 +675,21 @@ aws ssm list-command-invocations --details \
         },
 ```
 
-如果返回一个空的大括号，表示配置错误，没有正确执行。
+在System Manager的RunShellScript命令执行后，可以进一步登录到EC2 Nodegroup的节点上，查询镜像是否被缓存。操作方法是，进入EC2控制台，选中EC2实例，点击`Connect`按钮。如下截图。
 
-使用如下命令通过Session Manager在EC2 Nodegroup上执行查询，确认镜像是否缓存成功。
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-11.png)
+
+点击`Connect`按钮后，即可登录到EKS的EC2 Nodegroup节点。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-12.png)
+
+执行如下命令查询特定的ECR镜像名称，替换`bigimage`为ECR上镜像名称即可。
+
+```shell
+ctr -n k8s.io images ls | grep bigimage
+```
+
+此步骤，也可以通过AWSCLI并搭配Session Manager在EC2 Nodegroup上执行查询，确认镜像是否缓存成功。
 
 ```shell
 aws ec2 describe-instances \
@@ -719,6 +727,8 @@ Cannot perform start session: EOF
 ```
 
 由此可看到，节点已经加载了缓存。
+
+现在使用使用这个镜像，去启动一个全新的应用，并且可运行在不同的Namespace下。然后用上一章节的办法查询Pod启动时间，可看到Pod在1-2秒内就完成了启动。
 
 ### 2、集群变配增加新的EC2 Nodegroup节点后查看预加载
 
