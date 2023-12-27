@@ -2,28 +2,28 @@
 apiVersion: v1
 kind: Namespace
 metadata: 
-  name: bigimage
+  name: bigimage-new
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: bigimage2
-  namespace: 	bigimage
+  name: bigimage1
+  namespace: 	bigimage-new
   labels:
-    app: bigimage2
+    app: bigimage1
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: bigimage2
+      app: bigimage1
   template:
     metadata:
       labels:
-        app: bigimage2
+        app: bigimage1
     spec:
       containers:
-      - name: bigimage2
-        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:3
+      - name: bigimage1
+        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:7
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
@@ -31,14 +31,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: bigimage2
-  namespace: bigimage
+  name: bigimage1
+  namespace: bigimage-new
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
 spec:
   selector:
-    app: bigimage2
+    app: bigimage1
   type: LoadBalancer
   ports:
   - protocol: TCP
