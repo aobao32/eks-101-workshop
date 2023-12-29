@@ -4,7 +4,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.27"
+  version: "1.28"
 
 managedNodeGroups:
   - name: newng
@@ -16,6 +16,8 @@ managedNodeGroups:
     maxSize: 6
     volumeType: gp3
     volumeSize: 100
+    volumeIOPS: 3000
+    volumeThroughput: 125
     tags:
       nodegroup-name: newng
     iam:

@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: bigimage1
-        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:7
+        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:8
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80

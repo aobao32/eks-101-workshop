@@ -614,7 +614,7 @@ aws ssm create-association --cli-input-json file://ssm-command.json --region ap-
 这里验证两个场景：
 
 - 1、现有EC2 Nodegroup不变，之前启动过旧版本，现在发布新版镜像到ECR，观察所有EC2 Nodegroup是否会自动获取新镜像作为缓存；
-- 2、集群变配，增加新的EC2 Nodegroup到集群，观察新的EC2 Nodegroup是否会自动获取新镜像作为缓存。
+- 2、集群变配或者升级，增加新的EC2 Nodegroup到集群，观察新的EC2 Nodegroup是否会自动获取新镜像作为缓存。
 
 ### 1、新发布新版镜像到ECR后查看预加载
 
@@ -732,7 +732,45 @@ Cannot perform start session: EOF
 
 ### 2、集群变配增加新的EC2 Nodegroup节点后查看预加载
 
-待更新。
+在集群变配场景下，现有应用在现存节点是有缓存的，但Nodegroup中新生成的EC2是没有下载过任何一个镜像的，因此对于这些新节点，所有启动都是冷启动，需要从ECR加载镜像。按照本文配置过System Manager State Manager之后，新扩容出来的节点，也会自动缓存制定的镜像。
+
+首先进行节点扩容。请替换Cluster名称、Nodegroup名称和区域ID三个参数，然后执行如下命令。
+
+```shell
+eksctl scale nodegroup \
+  --cluster eksworkshop \
+  --name managed-ng \
+  --nodes 3 \
+  --nodes-min 2 \
+  --nodes-max 4 \
+  --region ap-southeast-1
+```
+
+为了确认是否触发了System Manager的State Manager，可以进入State Manager，找到上一步配置的`ecr-push-image`任务，查看其上一次运行的历史记录。
+
+在运行历史中，可看到其最新一次状态是失败，提示1个成功1个失败。这是正常的。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-13.png)
+
+点击详情，进入State Manager的任务，可看到里边有2个EC2，其中新的一个运行成功，表示加载了最新镜像。另一个运行错误没有关系，这是因为之前的老的节点，已经有了缓存。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-14.png)
+
+为了进一步确认加载成功，现在登录到EC2上查询。按照上文的方法，使用Session Manager登录到Nodegroup新扩容出来的EC2上，执行如下命令查询特定的ECR镜像名称，替换`bigimage`为ECR上镜像名称即可。
+
+```shell
+ctr -n k8s.io images ls | grep bigimage
+```
+
+由此可看到新EC2节点也有了缓存文件。如下截图。
+
+![](https://blogimg.bitipcman.com/workshop/eks101/ecr-cache/bigimage-15.png)
+
+现在拉起新的应用，可看到应用在几秒内启动完毕。
+
+至此验证配置成功。
+
+注意：新拉起Node之后，全新加载一个较大的image需要非t系列的机型、已经配置较高的EBS IOPS。如果是使用默认的gp3/3000iops/125MB吞吐，那么首次启动加载时间会稍长，但依然小于从ECR下载Image所需的时间，后续推送新镜像的速度也都会很快。如果EC2 Nodegroup拉起的是c/m/r系列机型且gp3磁盘配置了较高的iops，那么Pod启动会在几秒内即可完成。
 
 ## 六、参考文档
 
@@ -751,3 +789,7 @@ Reduce container startup time on Amazon EKS with Bottlerocket data volume
 Improve container startup time by caching images
 
 [https://github.com/aws-samples/containers-blog-maelstrom/tree/main/prefetch-data-to-EKSnodes]()
+
+Reducing AWS Fargate Startup Times with zstd Compressed Container Images
+
+[https://aws.amazon.com/cn/blogs/containers/reducing-aws-fargate-startup-times-with-zstd-compressed-container-images/]()

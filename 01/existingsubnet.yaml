@@ -34,6 +34,8 @@ managedNodeGroups:
       - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
+    volumeIOPS: 3000
+    volumeThroughput: 125
     tags:
       nodegroup-name: managed-ng
     iam:
