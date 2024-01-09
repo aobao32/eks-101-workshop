@@ -107,7 +107,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.27"
+  version: "1.28"
 
 vpc:
   clusterEndpoints:
@@ -127,6 +127,8 @@ managedNodeGroups:
     maxSize: 6
     volumeType: gp3
     volumeSize: 100
+    volumeIOPS: 3000
+    volumeThroughput: 125
     tags:
       nodegroup-name: ng1
     iam:
@@ -185,7 +187,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.27"
+  version: "1.28"
 
 vpc:
   clusterEndpoints:
@@ -215,6 +217,8 @@ managedNodeGroups:
       - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
+    volumeIOPS: 3000
+    volumeThroughput: 125
     tags:
       nodegroup-name: managed-ng
     iam:

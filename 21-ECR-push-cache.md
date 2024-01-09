@@ -11,7 +11,7 @@
 
 ## 一、背景
 
-在机器学习等场景下，可能需要在EKS上运行较大体积的Pod，其Image体积可能达到数个GB。此时在第一次启动Pod时候，会遇到所谓的冷启动问题，也就是EC2 Nodegroup需要从ECR容器镜像仓库去拉取较大尺寸的镜像，然后才能启动Pod。后续启动相同镜像即可利用缓存无须重复下载。此时，可以参考如下方法优化冷启动时间长的问题。
+在机器学习等场景下，需要在EKS上运行较大体积的Pod，其Image体积可能达到数个GB。此时在第一次启动Pod时候，会遇到所谓的冷启动问题，也就是EC2 Nodegroup需要从ECR容器镜像仓库去拉取较大尺寸的镜像，然后才能启动Pod。后续启动相同镜像即可利用缓存无须重复下载。此时，可以使用本文介绍的方法优化冷启动时间长。
 
 ### 1、优化尺寸的几种方法
 
@@ -44,7 +44,7 @@
 
 详情参考[这篇](https://aws.amazon.com/cn/blogs/containers/start-pods-faster-by-prefetching-images/)博客。
 
-本文后续篇幅将讲述本方案的部署。
+本文将着重讲述本方案的部署。
 
 ### 4、使用BottleRocket作为Node底层系统实现快速启动的方案
 
@@ -156,6 +156,8 @@ managedNodeGroups:
       - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
+    volumeIOPS: 3000
+    volumeThroughput: 125
     tags:
       nodegroup-name: managed-ng
     iam:
@@ -174,6 +176,8 @@ cloudWatch:
     enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
     logRetentionInDays: 30
 ```
+
+在以上配置中，使用的是gp3作为EC2 Nodegroup节点组的磁盘，默认为3000 IOPS和125MB的吞吐，并且没有额外选配费用。对于一般场景是成本最优选择。此配置可在2分钟内完成3～4GB镜像（压缩后）的磁盘加载。如果希望加载更快，可酌情上调，但会产生EBS的费用。如果不显式指定gp3类型，那么会默认分配gp2类型，iops是和容量成正比，在容量较小时侯，性能不如gp3，因此一般选择gp3即可。
 
 将以上配置文件保存为`eks-private-subnet.yaml`，然后执行如下命令启动集群。
 
@@ -237,7 +241,7 @@ spec:
 
 ### 1、查询Pod启动时间的脚本
 
-这里使用Github上`aws-samples`库中的`containers-blog-maelstrom/prefetch-data-to-EKSnodes\get-pod-boot-time.sh`的脚本来统计Pod启动时间。由于Github上原始脚本没有指定Namespace，因此只能显示默认的default namespaces，所以这里增加了Namespaces输入参数。代码如下。
+这里使用Github上`aws-samples`库中的`containers-blog-maelstrom/prefetch-data-to-EKSnodes/get-pod-boot-time.sh`的脚本来统计Pod启动时间。由于Github上原始脚本没有指定Namespace，因此只能显示默认的default namespaces，所以这里增加了Namespaces输入参数。代码如下。
 
 ```shell
 #!/usr/bin/env bash
@@ -297,7 +301,7 @@ kubectl apply -f bigimage.yaml
 It took approximately 109 seconds for bigimage-57dd856658-chsd9 to boot up and this script is ran on Darwin operating system
 ```
 
-测试结果时间：1分45秒左右，EC2 Nodegroup节点是t3.xlarge机型。
+测试结果时间：1分50秒左右，EC2 Nodegroup节点是t3.xlarge机型。
 
 ### 3、使用缓存的测试
 
@@ -315,7 +319,7 @@ It took approximately 109 seconds for bigimage-57dd856658-chsd9 to boot up and t
 It took approximately 2 seconds for bigimage2-56bb8d5d6-6qw49 to boot up and this script is ran on Darwin operating system
 ```
 
-花费时间：5秒左右。由此可看出，缓存明显提升了启动速度。
+花费时间：3秒左右。由此可看出，缓存明显提升了启动速度。
 
 ### 4、测试过程的录屏演示
 
@@ -328,17 +332,15 @@ It took approximately 2 seconds for bigimage2-56bb8d5d6-6qw49 to boot up and thi
 - 1、用Amazon linux 2 docker镜像，体积大约是100MB
 - 2、从官网下载Amazon linxu 2023的ova虚拟机镜像版本，向docker内放入8个虚拟机镜像，每个1.2GB，总容量强- 行凑到10GB，然后build docker成功
 - 3、docker上传到ECR后，ECR自动压缩，在ECR界面上显式为3.5GB
-- 4、在EC2 nodegroup是t3.xlarge机型上（网卡up-to-5Gbps），node的EBS是100GB的gp3磁盘，拉起应用共花费1分45秒启动成功
-- 5、在应用配置文件yaml中指定可利用缓存，使用相同image拉起新应用，大概不到5秒钟启动完毕
+- 4、在EC2 nodegroup是t3.xlarge机型上（网卡up-to-5Gbps），node的EBS是100GB的gp3磁盘，iops默认3000，吞吐默认125MB/s，拉起应用共花费1分50秒启动成功
+- 5、在应用配置文件yaml中指定可利用缓存，使用相同image拉起新应用，大概不到3秒钟启动完毕
 
 ## 四、使用EventBridge进行预加载
 
-前文介绍过，针对EKS的EC2 Nodegroup，可以使用预加载机制，通过EventBridge触发。
+前文介绍过，针对EKS的EC2 Nodegroup，可以使用预加载机制，通过EventBridge触发。在实际使用EKS过程中，有两种场景需要考虑：
 
-在实际使用EKS过程中，有两种场景需要考虑：
-
-- 在ECR上发布最新版镜像后，现有Nodegroup节点已经缓存了旧版本的镜像，需要预加载最新版做缓存 —— EventBridge + System Manager RunCommend ；
-- EKS的Nodegroup扩容，新增了新的EC2节点，此时EC2节点上还没有任何一个版本做过缓存，需要预加载最新版做缓存 —— EventBridge + System Manager State Manager 。
+- 在ECR上发布最新版镜像后，现有Nodegroup节点已经缓存了旧版本的镜像，需要预加载最新版做缓存。此时方案是 EventBridge + System Manager RunCommend ；
+- EKS的Nodegroup扩容，新增了新的EC2节点，此时EC2节点上还没有任何一个版本做过缓存，需要预加载最新版做缓存。此时方案是 EventBridge + System Manager State Manager 。
 
 两种场景的配置过程如下。
 
@@ -768,7 +770,9 @@ ctr -n k8s.io images ls | grep bigimage
 
 现在拉起新的应用，可看到应用在几秒内启动完毕。
 
-至此验证配置成功。
+至此验证配置成功。测试视频如下：
+
+![](https://video.bitipcman.com/eks-pull-cache-2.mp4)
 
 注意：新拉起Node之后，全新加载一个较大的image需要非t系列的机型、已经配置较高的EBS IOPS。如果是使用默认的gp3/3000iops/125MB吞吐，那么首次启动加载时间会稍长，但依然小于从ECR下载Image所需的时间，后续推送新镜像的速度也都会很快。如果EC2 Nodegroup拉起的是c/m/r系列机型且gp3磁盘配置了较高的iops，那么Pod启动会在几秒内即可完成。
 
