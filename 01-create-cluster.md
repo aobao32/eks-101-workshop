@@ -350,6 +350,7 @@ https://127.0.0.1:8443/#/login
 
 ```
 helm uninstall kubernetes-dashboard -n kubernetes-dashboard
+kubectl delete namespaces kubernetes-dashboard
 ```
 
 本命令为可选，可保留Dashboard，在后续实验中也可以继续通过Dashboard做监控。

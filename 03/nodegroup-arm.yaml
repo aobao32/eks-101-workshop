@@ -4,7 +4,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.28"
+  version: "1.30"
 
 managedNodeGroups:
   - name: newng
@@ -24,9 +24,12 @@ managedNodeGroups:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        externalDNS: true
         certManager: true
         efs: true
         ebs: true
+        fsx: true
         albIngress: true
+        awsLoadBalancerController: true
         xRay: true
         cloudWatch: true

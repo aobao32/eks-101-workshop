@@ -1,32 +1,29 @@
 # 实验四、在ARM架构上构建应用并使用ALB Ingress部署应用
 
-EKS 1.27版本 @2023-06 AWS Global区域测试通过
+EKS 1.30 版本 @2024-07 AWS Global区域测试通过
 
 ## 一、关于多架构支持
 
-前文的实验中，分别创建了两个Nodegroup，一个Nodegroup是使用X86_64架构Intel处理器的t3.xlarge(或m5.xlarge)机型，另一个Nodegroup是使用Graviton处理器的ARM机型t4g.xlarge或m6g.xlarge。
+前文的实验中，分别创建了两个Nodegroup，一个Nodegroup是使用X86_64架构Intel处理器的t3.xlarge(或m5.xlarge/m6i.xlarge)机型，另一个Nodegroup是使用Graviton处理器的ARM机型t4g.xlarge或m6g.xlarge。由于ARM架构的容器景象和X86_64架构的容器镜像并不通用，因此本文会重新构建一个ARM版本的image，并上传到ECR镜像仓库中，再部署到节点组。
 
-执行如下命令可查看Nodegroup和对应架构：
+注意，如果您希望将一个应用同时运行在两种架构的节点上，则需要对同一个应用作两种架构的编译和构建。可参考[本文](https://aws.amazon.com/cn/blogs/china/how-to-easily-deploy-hybrid-architecture-nodes-on-eks/)配置。
+
+执行如下命令可查看当前EKS集群的节点组Nodegroup所使用的处理器架构：
 
 ```
 kubectl get nodes --label-columns=kubernetes.io/arch
 ```
 
-返回结果如下，可看到最后一列就是对应的机型。
+返回结果如下，可看到最后一列就是对应的处理器机型，返回`amd64`表示是Intel或者AMD处理器的x86_64架构，返回`arm64`表示是Gravtion处理器的ARM架构。
 
 ```
-NAME                                                STATUS   ROLES    AGE    VERSION               ARCH
-ip-192-168-0-137.ap-southeast-1.compute.internal    Ready    <none>   169m   v1.27.1-eks-2f008fe   arm64
-ip-192-168-28-249.ap-southeast-1.compute.internal   Ready    <none>   3h4m   v1.27.1-eks-2f008fe   amd64
-ip-192-168-39-199.ap-southeast-1.compute.internal   Ready    <none>   169m   v1.27.1-eks-2f008fe   arm64
-ip-192-168-54-35.ap-southeast-1.compute.internal    Ready    <none>   3h4m   v1.27.1-eks-2f008fe   amd64
-ip-192-168-76-179.ap-southeast-1.compute.internal   Ready    <none>   169m   v1.27.1-eks-2f008fe   arm64
-ip-192-168-81-178.ap-southeast-1.compute.internal   Ready    <none>   3h4m   v1.27.1-eks-2f008fe   amd64
+NAME                                                STATUS   ROLES    AGE   VERSION               ARCH
+ip-192-168-6-252.ap-southeast-1.compute.internal    Ready    <none>   45m   v1.30.0-eks-036c24b   arm64
+ip-192-168-60-2.ap-southeast-1.compute.internal     Ready    <none>   45m   v1.30.0-eks-036c24b   arm64
+ip-192-168-89-203.ap-southeast-1.compute.internal   Ready    <none>   45m   v1.30.0-eks-036c24b   arm64
 ```
 
-现在分别在这两种不同架构的集群运行应用。
-
-注意，如果您希望将一个应用同时运行在两种架构的节点上，则需要对同一个应用作两种架构的编译和构建。可参考[本文](https://aws.amazon.com/cn/blogs/china/how-to-easily-deploy-hybrid-architecture-nodes-on-eks/)配置。
+接下来为ARM架构构建镜像并上传到ECR。
 
 ## 二、使用外部镜像仓库上ARM架构的镜像拉起应用并使用ALB Ingress
 

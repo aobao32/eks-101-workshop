@@ -349,6 +349,7 @@ ingress-for-nginx-app   alb     *       k8s-mydemo-ingressf-ecff36a9c4-177979360
 
 ```
 kubectl delete -f nginx-app.yaml
+kubectl delete namespaces mydemo
 ```
 
 至此实验完成。
