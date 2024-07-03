@@ -1,6 +1,6 @@
 # 实验一、创建EKS集群
 
-EKS 1.27版本 @2023-06 AWS Global区域测试通过
+EKS 1.30版本 @2024-07 AWS Global区域测试通过
 
 ## 一、AWSCLI安装和AKSK准备
 
@@ -14,7 +14,7 @@ EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
 在安装好AWSCLI的客户端上，进入命令行窗口，执行`aws configure`，然后填写正确的AKSK。同时，在命令的最后一步配置region的时候，设置region为本次实验的`ap-southeast-1`。
 
-请注意：如果是通过EventEngine或者Workshop Studio自动创建的实验环境，在EventEngine或者Workshop Studio界面上会提供一套默认的AKSK密钥，且这套AKSK需要搭配SessionToken使用。这套默认的密钥权限是不足以完成EKS集群创建的。因此，必须按照本文要求，重新创建一个新的管理员用户，然后新创建一个AKSK附加到本用户，才可以进行后续实验。
+请注意：如果是通过Workshop Studio自动创建的实验环境，在Workshop Studio界面上会提供一套默认的AKSK密钥，且这套AKSK需要搭配SessionToken使用。这套默认的密钥权限是不足以完成EKS集群创建的。因此，必须按照本文要求，重新创建一个新的管理员用户，然后新创建一个AKSK附加到本用户，才可以进行后续实验。
 
 ## 二、安装EKS客户端和Kubectl客户端（三个OS类型根据实验者选择其一）
 
@@ -40,23 +40,23 @@ choco install -y eksctl kubernetes-cli kubernetes-helm k9s jq curl wget vim 7zip
 
 在Linux下安装eks工具，包括eksctl和kubectl两个。
 
-X86_64架构的执行如下命令：
+使用X86_64架构的执行如下命令：
 
 ```
 curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
 sudo mv /tmp/eksctl /bin
-curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.28.3/2023-11-14/bin/linux/amd64/kubectl
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.30.0/2024-05-12/bin/linux/amd64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
 ```
 
-Graviton2的ARM架构的Linux执行如下命令：
+使用Graviton处理器的ARM架构的Linux执行如下命令：
 
 ```
 curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_arm64.tar.gz" | tar xz -C /tmp
 sudo mv /tmp/eksctl /bin
-curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.28.3/2023-11-14/bin/linux/arm64/kubectl
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.30.0/2024-05-12/bin/linux/arm64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
@@ -75,6 +75,7 @@ eksctl version
 然后使用brew工具即可安装eksctl。这里需要安装最新版本的eksctl，旧版本的不能创建最新EKS集群。
 
 ```
+brew install helm
 brew upgrade eksctl && { brew link --overwrite eksctl; } || { brew tap weaveworks/tap; brew install weaveworks/tap/eksctl; }
 eksctl version
 ```
@@ -82,17 +83,17 @@ eksctl version
 最后安装kubectl工具，也使用brew安装：
 
 ```
-brew reinstall kubernetes-cli
+brew reinstall kubernetes-cli 
 ```
 
 客户端准备完毕。
 
 ## 三、创建EKS集群的配置文件（两种场景二选一）
 
-EKS集群分成EC2模式和无EC2的Fargate模式。本文为有EC2模式的配置，不讨论Fargate配置。在接下来的网络模式又有两种：
+EKS集群分成EC2模式和无EC2的Fargate模式。本文为有EC2模式的配置，有关Fargate配置将在后续实验中讲解。在接下来的网络模式又有两种：
 
-- 创建集群时候，如果不指定参数，那么eksctl默认会自动生成一个全新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup节点组。此时如果希望位于默认VPC的现有业务系统与EKS互通，那么需要配置VPC Peering才可以打通网络；如果需求是此场景，请参考下述第一个章节所介绍的方式创建配置文件
-- 如果希望EKS使用现有VPC和子网，例如一个包含有Public Subnet/Private Subnet和NAT Gateway的VPC，那么请使用第二个章节所介绍的方式创建配置文件
+- 创建集群时候，如果不指定参数，那么eksctl默认会自动生成一个全新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup节点组。此时如果希望位于默认VPC的现有业务系统与EKS互通，那么需要配置VPC Peering才可以打通网络；如果需求是此场景，请参考下述第一个章节所介绍的方式创建配置文件；
+- 如果希望EKS使用现有VPC和子网，例如一个包含有Public Subnet/Private Subnet和NAT Gateway的VPC，那么请使用第二个章节所介绍的方式创建配置文件。
 
 ### 1、创建全新VPC
 
@@ -107,7 +108,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.28"
+  version: "1.30"
 
 vpc:
   clusterEndpoints:
@@ -135,10 +136,13 @@ managedNodeGroups:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        externalDNS: true
         certManager: true
         efs: true
         ebs: true
+        fsx: true
         albIngress: true
+        awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
 
@@ -187,7 +191,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.28"
+  version: "1.30"
 
 vpc:
   clusterEndpoints:
@@ -225,13 +229,16 @@ managedNodeGroups:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        externalDNS: true
         certManager: true
         efs: true
         ebs: true
+        fsx: true
         albIngress: true
+        awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
-
+        
 cloudWatch:
   clusterLogging:
     enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
@@ -259,10 +266,10 @@ kubectl get node
 返回节点如下表示正常。
 
 ```
-NAME                                                 STATUS   ROLES    AGE    VERSION
-ip-192-168-122-179.ap-southeast-1.compute.internal   Ready    <none>   159m   v1.22.6-eks-7d68063
-ip-192-168-137-83.ap-southeast-1.compute.internal    Ready    <none>   159m   v1.22.6-eks-7d68063
-ip-192-168-181-37.ap-southeast-1.compute.internal    Ready    <none>   159m   v1.22.6-eks-7d68063
+NAME                                                STATUS   ROLES    AGE     VERSION
+ip-192-168-0-22.ap-southeast-1.compute.internal     Ready    <none>   8m12s   v1.30.0-eks-036c24b
+ip-192-168-42-0.ap-southeast-1.compute.internal     Ready    <none>   8m14s   v1.30.0-eks-036c24b
+ip-192-168-93-206.ap-southeast-1.compute.internal   Ready    <none>   8m17s   v1.30.0-eks-036c24b
 ```
 
 ## 五、创建集群并配置Dashboard图形界面（本章节可选）
@@ -271,60 +278,81 @@ ip-192-168-181-37.ap-southeast-1.compute.internal    Ready    <none>   159m   v1
 
 ### 1、部署K8S原生控制面板
 
-执行如下命令部署Dashboard：
+以前部署K8S原生的Dashboard是从Github上拉取Yaml部署的，如今官方已经使用Helm作为唯一的部署方式。
+
+前文在安装`eksctl`命令时候，已经在MacOS和Windows上安装helm。如果还没安装，那么在MacOS上执行`brew install helm`可安装好helm，在Windows上执行`choco install kubernetes-helm`可安装好helm。
 
 ```
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard
 ```
 
-在以上命令中，采用的是直接调用Github托管的yaml文件，其域名是`raw.githubusercontent.com`。在国内网络条件下访问这个网址可能会失败。
-
-因此本实验另外提供了另外的网址可在国内的yaml文件。请执行如下命令开始启动。
+返回结果如下：
 
 ```
-kubectl apply -f https://myworkshop.bitipcman.com/eks101/01/kubernetes-dashboard.yaml
+Release "kubernetes-dashboard" does not exist. Installing it now.
+NAME: kubernetes-dashboard
+LAST DEPLOYED: Tue Jul  2 23:51:31 2024
+NAMESPACE: kubernetes-dashboard
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+*************************************************************************************************
+*** PLEASE BE PATIENT: Kubernetes Dashboard may need a few minutes to get up and become ready ***
+*************************************************************************************************
+
+Congratulations! You have just installed Kubernetes Dashboard in your cluster.
+
+To access Dashboard run:
+  kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard-kong-proxy 8443:443
+
+NOTE: In case port-forward command does not work, make sure that kong service name is correct.
+      Check the services in Kubernetes Dashboard namespace using:
+        kubectl -n kubernetes-dashboard get svc
+
+Dashboard will be available at:
+  https://localhost:8443
 ```
 
-部署需要等待3-5分钟。
+注意此窗口执行之后不要关闭，因为这个命令会转发Dashboard的443端口到本机的8443端口。
 
-### 2、登录到Dashboard
+### 2、生成用户和Token
 
-访问Dashboard的身份验证是通过token完成，执行以下命令获取token。注意需要手工替换EKS集群名称和region名称为实际操作环境。如果集群名称、Region信息不匹配，生成的token会报告401错误无法登录。
-
-```
-aws eks get-token --cluster-name eksworkshop --region ap-southeast-1 | jq -r .status.token
-```
-
-以上命令会输出类似如下的token，稍后复制下来，登录Dashboard会使用。
+新开一个命令行，执行如下命令生成个用户并获取Token：
 
 ```
-k8s-aws-v1.aHR0cHM6Ly9zdHMuYXAtc291dGhlYXN0LTEuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFSSEc2NFVGR1NTT01JWDZXJTJGMjAyMjAzMTglMkZhcC1zb3V0aGVhc3QtMSUyRnN0cyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjIwMzE4VDE2NDYzMlomWC1BbXotRXhwaXJlcz02MCZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QlM0J4LWs4cy1hd3MtaWQmWC1BbXotU2lnbmF0dXJlPTFjZDkzMGZjMjNhNTI2MmIyYWNhNDlmMzM0ZTZlMTRhNzFhMDE1NzU0MjY4YjYyOTgzMzA5ZmJjYTAxZjY5NTQ
+kubectl -n kubernetes-dashboard create serviceaccount admin
+kubectl -n kubernetes-dashboard create token admin
 ```
 
-使用如下命令启动Proxy将Dashboard的访问映射出来。
+返回结果如下：
 
 ```
-kubectl proxy
+eyJhbGciOiJSUzI1NiIsImtpZCI6IjVmOTNlYjFlMDUwOGFhYjE2M2Q4YzcwM2U5MjZlOTRjMzlmNDNkMDcifQ.eyJhdWQiOlsizHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjIl0sImV4cCI6MTcxOTkzOTUxMiwiaWF0IjoxNzE5OTM1OTEyLCJpc3MiOiJodHRwczovL29pZGMuZWtzLmFwLXNvdXRoZWFzdC0xLmFtYXpvbmF3cy5jb20vaWQvMUI0MjE1QUE3RDY1MUY1QjMyMTMwMjY0NUMyRjdERTUiLCJqdGkiOiJmNGI3N2I4Ny0wOTQ0LTQ0MjYtOGNiYy1hOWI3MmI2M2ZmZGQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6Imt1YmVybmV0ZXMtZGFzaGJvYXJkIiwic2VydmljZWFjY291bnQiOnsibmFtZSI4ImFkbWluIiwidWlkIjoiY2NlNDc4YzUtMjY5ZS00MDMyLWEwYTMtOTg4MzJlNDc1YzVlIn19LCJuYmYiOjE3MTk5MzU5MTIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlcm5ldGVzLWRhc2hib2FyZDphZG1pbiJ9.LXMF3t3vaSgby4FMH9wG612EI6j__1ng-G8sdL2dqalQUyLuDBZMsD8fSDJmqrk5xIbxNi8NzVyqLsYmbM4IqukXAC1YpG3BIBQy7dv5mB04xea8ttzioSABEFeYREoycptmfvCrJ95Z5MhUy3wqMia6D8Up838P6q5iG9kSB7wd3CCcQAJXDUTWgIBVr8uhVGzEZvo72T9YsTCkwQPx30mj0lPXwBDA_HHCMNOBW-Kt26jMZFPHUFeINEFkQKSY_Fp2Xx23P05ZczkNFN0WkCcVp7zCtzEqiDz-o5pdztpNkvZD-6fTuupUUBb3HTtzjve_scz6vO-7RqS6NWh02Q
 ```
 
-使用Chrome等不受安全策略限制的浏览器，在实验者的本机上访问如下地址（部分Firefox受到安全策略限制访问有兼容问题）。
+### 3、登陆Dashboard
+
+在实验者的本机上访问如下地址：
+
 ```
-http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
+https://127.0.0.1:8443/#/login
 ```
 
-登录页面打开后，选择第一项使用token登录，然后输入上一步获取的token，即可访问dashboard.
+登录页面打开后，在`Bearer token`位置输入上一步获取的token，即可访问dashboard.
 
 至此Dashboard配置完成。
-
-### 3、删除Dashboard服务（可选）
+ 
+### 4、删除Dashboard服务（可选）
 
 测试完成后，如果需要删除Dashboard，执行如下命令。
 
 ```
-kubectl delete -f https://myworkshop.bitipcman.com/eks101/kubernetes-dashboard.yaml
+helm uninstall kubernetes-dashboard -n kubernetes-dashboard
 ```
 
-本命令为可选，建议保留Dashboard，在后续实验中也可以继续通过Dashboard做监控。
+本命令为可选，可保留Dashboard，在后续实验中也可以继续通过Dashboard做监控。
 
 ## 六、部署Nginx测试应用并使用NodePort+NLB模式对外暴露服务
 
@@ -354,7 +382,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
         ports:
         - containerPort: 80
 ---
@@ -377,7 +405,7 @@ spec:
 执行如下命令。
 
 ```
-kubectl apply -f nginx-nlb.yaml 
+kubectl apply -f nginx-nlb.yaml
 ```
 
 ### 2、检查部署结果
@@ -391,21 +419,10 @@ kubectl get pods
 返回结果如下Running表示运行正常。
 
 ```
-NAME                                READY   STATUS    RESTARTS   AGE
-nginx-deployment-85ff79dd56-8l8wn   1/1     Running   0          2m
-```
-
-确认部署执行如下命令。
-
-```
-kubectl get deployment nginx-deployment
-```
-
-返回结果如下，状态是Available表示工作正常。
-
-```
-NAME               READY   UP-TO-DATE   AVAILABLE   AGE
-nginx-deployment   1/1     1            1           9m12s
+NAME                               READY   STATUS    RESTARTS   AGE
+nginx-deployment-559547759-4k82p   1/1     Running   0          12s
+nginx-deployment-559547759-9wrsd   1/1     Running   0          12s
+nginx-deployment-559547759-wm5mp   1/1     Running   0          12s
 ```
 
 ### 3、测试从浏览器访问
@@ -423,8 +440,8 @@ kubectl get service service-nginx -o wide
 返回结果如下。其中的ELB域名地址就是对外访问入口。其中的CLUSTER-IP即可看到是创建集群时候指定的IP范围。
 
 ```
-NAME            TYPE           CLUSTER-IP   EXTERNAL-IP                                                                          PORT(S)        AGE    SELECTOR
-service-nginx   LoadBalancer   10.50.0.12   a4fa7cb23a0754d8b8198fad9fa7b133-114a5df4c6565d90.elb.ap-southeast-1.amazonaws.com   80:31411/TCP   156m   app=nginx
+NAME            TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE     SELECTOR
+service-nginx   LoadBalancer   10.50.0.119   aaa836fe8800b4b1db39802cc604d650-7b3437ed776ea80d.elb.ap-southeast-1.amazonaws.com   80:32253/TCP   2m39s   app=nginx
 ```
 
 用浏览器访问ELB地址，即可验证应用启动结果。
@@ -464,21 +481,13 @@ curl -m3 -v 上文获取到的NLB入口地址
 执行如下命令：
 
 ```
-kubectl delete -f nginx-deployment.yaml
+kubectl delete -f nginx-nlb.yaml
 ```
 
 至此服务删除完成。
 
 ## 七、参考文档
 
-AWS GCR Workshop：
-
-[https://github.com/aws-samples/eks-workshop-greater-china/tree/master/china/2020_EKS_Launch_Workshop](https://github.com/aws-samples/eks-workshop-greater-china/tree/master/china/2020_EKS_Launch_Workshop)
-
 K8S的Dashboard安装：
 
-[https://github.com/kubernetes/dashboard](https://github.com/kubernetes/dashboard)
-
-eksctl的安装：
-
-[https://github.com/weaveworks/eksctl](https://github.com/weaveworks/eksctl)
+[https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/]()

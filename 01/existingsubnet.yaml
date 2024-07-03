@@ -2,9 +2,9 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: eksworkshop2
+  name: eksworkshop
   region: ap-southeast-1
-  version: "1.28"
+  version: "1.30"
 
 vpc:
   clusterEndpoints:
@@ -42,13 +42,16 @@ managedNodeGroups:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        externalDNS: true
         certManager: true
         efs: true
         ebs: true
+        fsx: true
         albIngress: true
+        awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
-
+        
 cloudWatch:
   clusterLogging:
     enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]

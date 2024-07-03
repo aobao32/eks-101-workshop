@@ -4,7 +4,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.28"
+  version: "1.30"
 
 vpc:
   clusterEndpoints:
@@ -18,7 +18,7 @@ managedNodeGroups:
   - name: managed-ng
     labels:
       Name: managed-ng
-    instanceType: t3.xlarge
+    instanceType: t3.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
@@ -27,15 +27,18 @@ managedNodeGroups:
     volumeIOPS: 3000
     volumeThroughput: 125
     tags:
-      nodegroup-name: managed-ng
+      nodegroup-name: ng1
     iam:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        externalDNS: true
         certManager: true
         efs: true
         ebs: true
+        fsx: true
         albIngress: true
+        awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
 

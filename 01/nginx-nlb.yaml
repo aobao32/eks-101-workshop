@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
         ports:
         - containerPort: 80
 ---
