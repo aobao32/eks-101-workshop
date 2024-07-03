@@ -62,7 +62,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:
@@ -167,7 +167,7 @@ ingress-for-nginx-app   alb     *       k8s-mydemo1-ingressf-7d07591635-11804648
 ```
 sudo -i
 yum update -y
-yum install -y docker
+yum install -y docker tmux
 service docker start
 systemctl enable docker
 usermod -a -G docker ec2-user
@@ -177,7 +177,7 @@ usermod -a -G docker ec2-user
 
 #### （2）编辑容器配置文件
 
-创建`src`目录，并将如下内容保存为`run_apache.sh`脚本：
+创建`src`目录，进入`src`目录，并将如下内容保存为`run_apache.sh`脚本：
 
 ```
 mkdir -p /var/run/apache2
@@ -236,11 +236,15 @@ public.ecr.aws/amazonlinux/amazonlinux   2023      81f7bc2150ae   7 days ago    
 
 #### （4）在ECR上创建镜像仓库
 
-进入AWS控制台，进入ECR服务，创建一个新的仓库，选择类型为私有`Private`，取名为`php`。
+注意：此步骤不可跳过。如果没有实现创建镜像仓库，那么在开发环境做`docker push`时候就会报错，不会自动创建镜像仓库。
 
-#### （5）在开发环境上配置AKSK并登陆ECR服务
+进入AWS控制台，进入ECR服务，创建一个新的仓库，选择类型为私有`Private`，取名为`mydemo2`。在创建仓库的向导页面下方，在`Tag immutability`的开关设置为启用，在`Scan on push`的开关设置为启用。然后点击创建。
 
-首先在开发环境上配置AWSCLI。配置好AKSK密钥后，执行如下命令登陆到ECR：
+创建完毕后，在镜像仓库的`URI`位置即可看到仓库的名称类似`133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/mydemo2`的地址。
+
+#### （5）在开发环境上配置AKSK并登陆ECR容器镜像仓库
+
+首先在开发环境上配置AWSCLI。配置好AKSK密钥后，执行如下命令登陆到ECR容器镜像仓库。注意替换对应的region代号。
 
 ```
 aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com
@@ -263,29 +267,32 @@ Login Succeeded
 请替换如下命令中的容器名称、ECR地址为实际名称和地址。
 
 ```
-docker tag php:latest 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
-docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
+docker tag php:latest 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/mydemo2:latest
+docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/mydemo2:latest
 ```
 
 操作成功的话返回如下：
 
 ```
-docker push 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php
-Using default tag: latest
-The push refers to repository [133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php]
-4135e952e25c: Pushed
-9b66f00047a4: Pushed
-7d2cdf1e4b23: Pushed
-latest: digest: sha256:ccb313d61cc92981f84ac70cc45771d3f6e5999c64de1d6b979042891c0268d6 size: 948
+The push refers to repository [133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/mydemo2]
+38799289308e: Pushed
+5aad7e0963a0: Pushed
+ba317555b8f4: Pushed
+e4be13cbd817: Pushed
+latest: digest: sha256:9eb71521a3024da70951935d6740d3e2ea30b589c84f1e13397a16aa2577ae8c size: 1155
 ```
 
 #### （7）获得ECR上镜像仓库的地址
 
+再次进入ECR容器镜像仓库，找到刚才创建的仓库`mydemo2`，进入后可以看到URI的完整地址和版本如下：
+
 ```
-133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
+133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/mydemo2:latest
 ```
 
-注意，不同region的名称不一样，以及最后要包含tag版本号。
+注意，不同region的代号对应的地址不一样，并且注意最后要包含版本号。
+
+至此，一个至此Graviton处理器的容器镜像已经上传到ECR上。
 
 ### 2、编写要在EKS上使用的应用的yaml文件
 
@@ -314,7 +321,7 @@ spec:
         app.kubernetes.io/name: php
     spec:
       containers:
-      - image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/php:latest
+      - image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/mydemo2:latest
         imagePullPolicy: Always
         name: php
         ports:
@@ -360,14 +367,14 @@ spec:
               number: 80
 ```
 
-请替换以上yaml文件中，namespace、deployment、image、service、alb ingress等可替换为自己的标识。
+请替换以上yaml文件中的镜像仓库、镜像名称、版本，以及对应EKS部署的namespace、deployment、image、service、alb ingress等参数，可替换为实际使用的标识。
 
-将以上文件保存为phpdocker.yaml，然后从本地启动部署。
+将以上文件保存为`php-arm.yaml`，然后从本地启动部署。
 
 ### 3、启动应用
 
 ```
-kubectl apply -f phpdocker.yaml
+kubectl apply -f php-arm.yaml
 ```
 
 即可启动应用。返回结果如下：
@@ -391,9 +398,9 @@ kubectl get pods -n mydemo2
 
 ```
 NAME                   READY   STATUS    RESTARTS   AGE
-php-866cdf8bc8-47r2m   1/1     Running   0          28s
-php-866cdf8bc8-kx488   1/1     Running   0          28s
-php-866cdf8bc8-m74b8   1/1     Running   0          28s
+php-749c7cbbd7-clq2x   1/1     Running   0          98s
+php-749c7cbbd7-hhncg   1/1     Running   0          98s
+php-749c7cbbd7-slthw   1/1     Running   0          98s
 ```
 
 ### 5、查看ALB Ingress入口
@@ -408,23 +415,23 @@ kubectl get ingress -n mydemo2
 
 ```
 NAME                  CLASS   HOSTS   ADDRESS                                                                      PORTS   AGE
-ingress-for-php-app   alb     *       k8s-mydemo2-ingressf-f7e5327d11-672345132.ap-southeast-1.elb.amazonaws.com   80      39s
+ingress-for-php-app   alb     *       k8s-mydemo2-ingressf-f7e5327d11-658637890.ap-southeast-1.elb.amazonaws.com   80      78s
 ```
 
 使用浏览器访问上述ALB地址即可访问成功。
 
-## 五、删除实验环境（可选）
+## 四、删除运行中的ARM架构的容器Pod和ALB Ingress的实验环境（可选）
 
 执行如下命令删除刚才创建的两个应用：
 
 ```
 kubectl delete -f nginx-from-public-repo-arm.yaml
-kubectl delete -f phpdocker.yaml
+kubectl delete -f php-arm.yaml
 ```
 
 实验完成。
 
-## 六、参考文档
+## 五、参考文档
 
 AWS Load Balancer Controller Ingress annotations 参数说明
 
