@@ -40,14 +40,14 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 
 如上文描述，为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段。架构图如下。
 
-![](https://blogimg.bitipcman.com/2022/05/04102242/eks-vpc-cidr-for-pod.png)
+![](https://blogimg.bitipcman.com/workshop/eks101/eks-network.png)
 
 在这张图内，以AZ1的网络为例进行讲解，分成几个层面：
 
 - VPC的CIDR是172.31.0.0/16，因此现有的子网都在这个范围内
 - 部署NAT Gateway的公有子网，分配了是172.31.0.0/20的子网
 - 部署EKS的Nodegroup的节点组是在私有子网，分配了172.31.48.0/20的子网
-- 为了模拟VPC扩容，在VPC上新增了100.64.0.0/16的网段，并且分配了一个Pod专用子网100.64.0.0/17，且这个子网也是私有子网，对互联网的交互是依赖NAT Gateway的
+- 为了模拟VPC扩容，在VPC上新增了100.64.0.0/16的网段，并且分配了一个Pod专用子网100.64.0.0/20，且这个子网也是私有子网，对互联网的交互是依赖NAT Gateway的
 
 下面开始描述配置过程。
 
