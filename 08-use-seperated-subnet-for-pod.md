@@ -634,7 +634,7 @@ service-nginx   LoadBalancer   10.50.0.34   k8s-privaten-servicen-3fe387f3ed-3b1
 
 从VPC内访问以上的NLB入口地址，即可看到应用加载正常。
 
-## 六、确认Pod运行在和Node相互独立的网段
+## 六、确认以上Pod运行在和Node相互独立的网段
 
 上述几个场景的实验完整后，EKS集群上分别有了可从外网访问的ALB Ingress、Public NLB和Private NLB，以及他们背后的应用pod。
 
@@ -642,7 +642,17 @@ service-nginx   LoadBalancer   10.50.0.34   k8s-privaten-servicen-3fe387f3ed-3b1
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/ip/pod11.png)
 
-## 七、参考文档
+## 七、删除Pod环境（不删除集群和Node）
+
+执行如下命令：
+
+```
+kubectl delete -f private-nlb.yaml
+kubectl delete -f public-alb.yaml
+kubectl delete -f public-nlb.yaml
+```
+
+## 八、参考文档
 
 Github上的AWS VPC CNI代码和文档：
 

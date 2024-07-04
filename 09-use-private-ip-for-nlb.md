@@ -1,18 +1,16 @@
 # 实验九、为私有NLB使用指定的、固定的内网IP地址
 
-EKS 1.27版本 @2023-06 AWS Global区域测试通过
+EKS 1.30 版本 @2024-07 AWS Global区域测试通过
 
 ## 一、背景
 
-在一些情况下，EKS部署的服务需要使用私有的NLB即 Internal NLB + Node Port 方式对VPC内的其他应用暴露服务，但是又不需要暴露在互联网上。这些场景可能包括：
+在一些情况下，EKS部署的服务需要使用私有的NLB方式对VPC内的其他应用暴露服务，但是又不需要暴露在互联网上。这些场景可能包括：
 
 - 某个纯内网的微服务，不需要外部互联网调用，只需要从VPC和其他内网调用
 - 结合Gateway Load Balancer部署的多VPC的网络流量扫描方案，EKS所在的VPC为纯内网
-- 其他需要固定IP地址作为入口的场景
+- 其他需要固定IP地址作为入口的场景，在这些场景下创建Internal NLB即可，不需要创建Internet-facing NLB。
 
-在这些场景下创建Internal NLB即可，不需要创建Internet-facing NLB。
-
-一般的流程是创建NLB之后，通过AWS控制台或者AWSCLI查询NLB所使用的VPC内的内网IP地址，这个内网IP就是NLB的固定IP，在本NLB不删除的情况下，永远不会改变。如果希望在创建之前就确定使用哪些固定IP，则在EKS的配置中可手工指定希望使用的内网IP。
+一般的流程是创建NLB之后，通过AWS控制台或者AWSCLI查询NLB所使用的VPC内的内网IP地址，这个内网IP就是NLB的固定IP。在本NLB不删除的情况下，永远不会改变。在EKS服务中，创建好的NLB对应的IP地址也是不变的。如果希望在创建之初，手工指定IP，那么可以按照本文的方式配置。
 
 ## 二、确认私有NLB所在子网位置和可用IP地址
 
@@ -20,7 +18,7 @@ EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
 本文的EKS所在的VPC分成多个子网，且Node节点所在子网和Pod容器所在子网是两个独立的子网。此外，Pod所在子网还使用了VPC扩展IP地址段即100.64网段。关于如何使用VPC扩展IP地址的说明，可以参考[这里](https://github.com/aobao32/eks-101-workshop/blob/main/08-use-seperated-subnet-for-pod.md)的文档。
 
-在这样一个网络环境下，如果创建的VPC是纯内网访问的，建议选择NLB落地的子网可以在Node节点所在子网。接下来将确认这个子网的已经使用的IP地址的情况。
+在这样一个网络环境下，如果希望创建一个只用于内网访问的NLB，那么可以将Pod独立放在一个网段，将NLB和Node放在一个网段。接下来将确认这个子网的已经使用的IP地址的情况。
 
 ### 2、查询可用IP地址
 
@@ -46,7 +44,7 @@ EKS 1.27版本 @2023-06 AWS Global区域测试通过
 
 - 标签名称：kubernetes.io/role/elb，值：1
 
-接下来进入Private subnet，为其添加标签：
+接下来进入Private subnet（本文中是Node所在的子网），为其添加标签：
 
 - 标签名称：kubernetes.io/role/internal-elb，值：1
 
@@ -83,7 +81,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:
@@ -129,8 +127,8 @@ kubectl get service service-nginx -n private-nlb-fixed-ip -o wide
 返回结果如下：
 
 ```
-NAME            TYPE           CLUSTER-IP   EXTERNAL-IP                                                                          PORT(S)        AGE   SELECTOR
-service-nginx   LoadBalancer   10.50.0.82   k8s-privaten-servicen-0b69eabbfb-22e4e160550e1514.elb.ap-southeast-1.amazonaws.com   80:31758/TCP   32s   app.kubernetes.io/name=nginx
+NAME            TYPE           CLUSTER-IP    EXTERNAL-IP                                                                          PORT(S)        AGE     SELECTOR
+service-nginx   LoadBalancer   10.50.0.184   k8s-privaten-servicen-a9a512aed8-cdd19b47e229b5ee.elb.ap-southeast-1.amazonaws.com   80:30880/TCP   2m40s   app.kubernetes.io/name=nginx
 ```
 
 其中标记`EXTERNAL-IP`的字段就是Private NLB的地址，则个地址只能从VPC内访问，不可重互联网访问。
@@ -157,7 +155,15 @@ service-nginx   LoadBalancer   10.50.0.82   k8s-privaten-servicen-0b69eabbfb-22e
 
 在VPC的子网管理中，有一项名为“CIDR预留”的功能。此功能不适用于指定NLB的内网IP分配功能。因为当标记为IP地址预留时候，此地址将不可被NLB所使用，由此会导致NLB创建失败。因此，为NLB指定IP前，查找IP地址是否被占用，通过ENI网卡界面查询即可。
 
-## 五、参考文档
+## 五、删除实验环境（只删除应用Pod不删除集群）
+
+执行如下命令删除实验环境：
+
+```
+kubectl delete -f NLB-internal-with-private-ip.yaml
+```
+
+## 六、参考文档
 
 [https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#private-ipv4-addresses]()
 
