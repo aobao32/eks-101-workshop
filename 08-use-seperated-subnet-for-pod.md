@@ -1,6 +1,6 @@
 # 实验八、为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段
 
-EKS 1.27版本 @2023-06 AWS Global区域测试通过
+EKS 1.30 版本 @2024-07 AWS Global区域测试通过
 
 ## 一、背景及网络场景选择
 
@@ -22,23 +22,34 @@ AWS EKS默认使用AWS VPC CNI（了解更多点[这里](https://github.com/aws/
 
 除此以外，可能还有其他方式用于实现跨VPC的应用互访，再次不逐个罗列。
 
-#### （2）方案二、为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段
-
-VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默认的VPC CNI，首先为现有VPC扩展IP地址，并配置EKS使用扩展IP地址。本方案影响较小，过度平滑，不需要额外创建VPC，也不需要重新部署EKS网络CNI。需要注意的是，扩展IP地址存在范围限制，并不是任意IP都可以添加到VPC的扩展范围内，请注意参考[这里](https://docs.aws.amazon.com/zh_cn/vpc/latest/userguide/configure-your-vpc.html#add-cidr-block-restrictions)文档描述的限制范围。如果此IP段不可接受，则因考虑其他方案。
-
-#### （3）方案三、更换Kubenetus社区的CNI并配置EKS Pod使用非VPC IP地址
+#### （2）方案二、更换Kubenetus社区的CNI并配置EKS Pod使用非VPC IP地址
 
 如果希望EKS上的Pod完全不使用本VPC的IP地址，这可以更换EKS的CNI网络插件，官方文档[这里](https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/alternate-cni-plugins.html)做了介绍。在集群创建后，可删除默认的AWS VPC CNI，然后安装WeaveNet等插件。
 
-本文描述方案二，即为VPC扩展IP。
+#### （3）方案三、为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段
+
+VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默认的VPC CNI，首先为现有VPC扩展IP地址，并配置EKS使用扩展IP地址。本方案影响较小，过度平滑，不需要额外创建VPC，也不需要重新部署EKS网络CNI。
+
+要添加的IP，通常是VPC的CIDR扩展，或者是100.64的保留网段。AWS云上100.64是定义为保留网段使用。
+
+需要注意的是，扩展IP地址存在范围限制，并不是任意IP都可以添加到VPC的扩展范围内，请注意参考[这里](https://docs.aws.amazon.com/zh_cn/vpc/latest/userguide/configure-your-vpc.html#add-cidr-block-restrictions)文档描述的限制范围。如果此IP段不可接受，则因考虑其他方案。
+
+本文描述方案三，即为VPC扩展IP。
 
 ### 3、为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段的架构图
 
-如上文描述，本文使用方式2，也就是为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段。架构图如下。
+如上文描述，为VPC扩展IP地址并配置EKS Pod使用独立的IP地址段。架构图如下。
 
 ![](https://blogimg.bitipcman.com/2022/05/04102242/eks-vpc-cidr-for-pod.png)
 
-下面开始描述配置过程。注：文档描述的IP地址段与上边的架构图地址段有出入，以实际配置为准。
+在这张图内，以AZ1的网络为例进行讲解，分成几个层面：
+
+- VPC的CIDR是172.31.0.0/16，因此现有的子网都在这个范围内
+- 部署NAT Gateway的公有子网，分配了是172.31.0.0/20的子网
+- 部署EKS的Nodegroup的节点组是在私有子网，分配了172.31.48.0/20的子网
+- 为了模拟VPC扩容，在VPC上新增了100.64.0.0/16的网段，并且分配了一个Pod专用子网100.64.0.0/17，且这个子网也是私有子网，对互联网的交互是依赖NAT Gateway的
+
+下面开始描述配置过程。
 
 ## 二、为现有VPC扩展地址段
 
@@ -107,13 +118,14 @@ VPC和EKS都支持使用扩展地址段。在此方案下，继续使用EKS默�
 首先构建配置文件，替换其中的子网ID为Node所在的子网ID。
 
 ```
+
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: eksworkshop2
+  name: eksworkshop
   region: ap-southeast-1
-  version: "1.27"
+  version: "1.30"
 
 vpc:
   clusterEndpoints:
@@ -149,10 +161,13 @@ managedNodeGroups:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        externalDNS: true
         certManager: true
         efs: true
         ebs: true
+        fsx: true
         albIngress: true
+        awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
 
@@ -186,6 +201,12 @@ eksctl create cluster -f eks-in-private-subnet.yaml
 
 ``` 
 kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
+```
+
+返回如下信息表示配置成功。
+
+```
+daemonset.apps/aws-node env updated
 ```
 
 进入AWS控制台，从子网界面查看子网信息，确定Pod所在子网，获得可用区ID和子网ID。将三个Pod子网的信息分别复制下来。如下截图。
@@ -223,33 +244,48 @@ spec:
 kubectl apply -f eniconfig.yaml
 ```
 
+执行命令`kubectl get ENIConfigs`验证配置是否成功。返回结果如下则表示设置成功。
+
+```
+NAME              AGE
+ap-southeast-1a   91s
+ap-southeast-1b   91s
+ap-southeast-1c   90s
+```
+
 接下来为EKS设置标签，允许Node使用对应子网。执行如下命令：
 
 ```
 kubectl set env daemonset aws-node -n kube-system ENI_CONFIG_LABEL_DEF=topology.kubernetes.io/zone
 ```
 
+返回如下结果表示设置成功。
+
+```
+daemonset.apps/aws-node env updated
+```
+
 为了查询上述配置是否生效，可以自行如下命令：
 
 ```
-kubectl describe daemonset aws-node --namespace kube-system
+kubectl describe daemonset aws-node -n kube-system | grep ENI_CONFIG_LABEL_DEF
 ```
 
-通过输出结果即可确认配置生效。
+返回如下结果表示设置成功。
+
+```
+      ENI_CONFIG_LABEL_DEF:                topology.kubernetes.io/zone
+      ENI_CONFIG_LABEL_DEF:                topology.kubernetes.io/zone
+      ENI_CONFIG_LABEL_DEF:                topology.kubernetes.io/zone
+```
 
 ### 2、使用Node子网创建新的Nodegroup节点组
 
-注意：本实验采用的是创建全新集群，并修改网络配置，然后创建节点组。如果是现有集群，修改网络配置后也要重新创建Node才可以生效。
+注意：修改了EKS网络参数后，必须重新创建新的Nodegroup节点组，原先的节点组不会发生过变化、原先的Pod也不会自动迁移到新分配的子网。另外如果EKS版本低于1.28版本，那么建议执行如下命令确认插件为最新。如果已经1.28版本可以暂时不用升级。
 
-如果上述配置文件启动的Nodegroup是Graviton处理器的ARM机型，则需要额外执行如下命令确认插件为最新：
+升级命令如下（会对现有pod造成短暂网络影响）。
 
-```
-eksctl utils update-coredns --cluster eksworkshop --approve
-eksctl utils update-kube-proxy --cluster eksworkshop --approve
-eksctl utils update-aws-node --cluster eksworkshop --approve
-```
-
-构建如下内容，保存为`newnodegroup.yaml`文件。
+构建如下内容，保存为`new-subnet-for-pod`文件。注意这里建议使用相同处理器架构的Nodegroup，这样便于Pod可以自动漂移过去。
 
 ```
 apiVersion: eksctl.io/v1alpha5
@@ -258,33 +294,33 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.27"
+  version: "1.30"
 
 managedNodeGroups:
-  - name: newng1
+  - name: newng
     labels:
-      Name: newng1
-    instanceType: t4g.xlarge
+      Name: newng
+    instanceType: t3.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
-    privateNetworking: true
-    subnets:
-      - subnet-04a7c6e7e1589c953
-      - subnet-031022a6aab9b9e70
-      - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
+    volumeIOPS: 3000
+    volumeThroughput: 125
     tags:
-      nodegroup-name: newng1
+      nodegroup-name: new-subnet-for-pod
     iam:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        externalDNS: true
         certManager: true
         efs: true
         ebs: true
+        fsx: true
         albIngress: true
+        awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
 ```
@@ -292,14 +328,16 @@ managedNodeGroups:
 保存配置完毕后，执行如下命令生效：
 
 ```
-eksctl create nodegroup -f newnodegroup.yaml
+eksctl create nodegroup -f new-subnet-for-pod.yaml
 ```
 ### 3、把旧的Nodegroup删除
+
+如果新创建的Nodegroup是采用相同处理器架构的EC2，那么删除旧的Nodegroup时候，原有的Pod会自动漂移到新的Nodegroup上。反之，则要看本应用对应的镜像仓库上是否有分别提供X86_64版本和ARM版本的容器镜像，如果有对应版本的话原有的Pod会自动漂移到新的Nodegroup上，如果没有的话应用Pod会启动失败。
 
 执行如下命令：
 
 ```
-eksctl delete nodegroup --name newng1 --cluster eksworkshop 
+eksctl delete nodegroup --name managed-ng --cluster eksworkshop 
 ```
 
 删除完毕后，即可在新的节点上用新的网络配置启动应用，这时候应用Pod网段将会与Node网段独立开。
@@ -335,7 +373,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:
@@ -444,7 +482,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:
@@ -533,7 +571,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:
@@ -582,7 +620,7 @@ service/service-nginx created
 查看NLB入口。
 
 ```
-kubectl get service service-nginx -n private-nlb -o wide 
+kubectl get service service-nginx -n private-nlb -o wide
 ``` 
 
 ```
@@ -612,7 +650,7 @@ Github上的AWS VPC CNI代码和文档：
 
 使用CNI自定义网络：
 
-[https://docs.aws.amazon.com/zh_cn/eks/latest/userguide/cni-custom-network.html]()
+[https://docs.aws.amazon.com/eks/latest/userguide/cni-custom-network.html]()
 
 EKS的NLB参数说明：
 
