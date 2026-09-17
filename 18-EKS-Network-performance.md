@@ -217,7 +217,7 @@ spec:
 kubectl apply -f test.yaml
 ```
 
-## 五、测试流程
+## 四、测试流程
 
 ### 1、iperf2工具使用方法
 
@@ -298,7 +298,7 @@ kubectl describe daemonset aws-node --namespace kube-system | grep amazon-k8s-cn
 
 升级完毕，再次进行测试，并观察测试结果。
 
-## 六、测试数据和小结
+## 五、测试数据和小结
 
 |对比|CNI版本<br>v1.14.1-eksbuild.1|CNI版本<br>v1.15.4-eksbuild.1|
 |---|---|---|
