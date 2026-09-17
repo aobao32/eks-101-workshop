@@ -277,55 +277,88 @@ kubectl get node
 
 ```
 NAME                                                STATUS   ROLES    AGE     VERSION
-ip-192-168-0-22.ap-southeast-1.compute.internal     Ready    <none>   8m12s   v1.36.1-eks-xxxxxxx
-ip-192-168-42-0.ap-southeast-1.compute.internal     Ready    <none>   8m14s   v1.36.1-eks-xxxxxxx
-ip-192-168-93-206.ap-southeast-1.compute.internal   Ready    <none>   8m17s   v1.36.1-eks-xxxxxxx
+ip-192-168-0-22.ap-southeast-1.compute.internal     Ready    <none>   8m12s   v1.36.3-eks-cb19647
+ip-192-168-42-0.ap-southeast-1.compute.internal     Ready    <none>   8m14s   v1.36.3-eks-cb19647
+ip-192-168-93-206.ap-southeast-1.compute.internal   Ready    <none>   8m17s   v1.36.3-eks-cb19647
 ```
 
-## 五、创建集群并配置Dashboard图形界面（本章节可选）
+上述VERSION列中的补丁版本号会随EKS版本迭代而变化，读者以实际返回值为准。
+
+注意：在`eksctl`已经输出集群创建完成之后的数分钟内，部分节点可能出现`NotReady`状态，此时执行`kubectl describe node`可以看到节点状态为`Ready=False`，原因是`KubeletNotReady`，消息内容为`node is shutting down`。这属于AL2023镜像节点在首次引导阶段的一次性重启，通过`kubectl get events`可以观察到对应的`Rebooted`事件与变更后的boot id，而在EC2控制台上可以确认实例始终处于`running`状态且未被替换。该现象通常在2至3分钟内自动恢复，无需人工干预，也不需要重建节点组。同时`kube-system`命名空间内会残留若干`Completed`状态的CoreDNS与metrics-server旧副本，属于该重启周期的产物，可以忽略。
+
+## 五、创建集群并配置Headlamp图形界面（本章节可选）
 
 本章节可跳过不影响后续实验。
 
-### 1、部署K8S原生控制面板
+注意：本章节在EKS 1.36版本的更新中由Kubernetes Dashboard整体替换为Headlamp。原因是Kubernetes Dashboard项目已于2026年1月21日归档，仓库迁移至`kubernetes-retired/dashboard`并转为只读，其GitHub Pages所承载的Helm仓库随之下线，继续执行原先的`helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/`会返回`404 Not Found`错误。归档后的Dashboard虽然在既有集群中仍可运行，但不再接收安全补丁、缺陷修复与功能更新，因此不应继续用于生产环境。Kubernetes官方在归档说明中指定的继任者是Headlamp。
 
-以前部署K8S原生的Dashboard是从Github上拉取Yaml部署的，如今官方已经使用Helm作为唯一的部署方式。
+Headlamp目前托管在`kubernetes-sigs`组织下，由Kubernetes SIG UI维护，采用Apache 2.0许可，同时是CNCF Sandbox项目，其容器镜像发布在ghcr.io。相比原Dashboard，Headlamp在能力上的差异如下表所示。
 
-前文在安装`eksctl`命令时候，已经在MacOS和Windows上安装helm。如果还没安装，那么在MacOS上执行`brew install helm`可安装好helm，在Windows上执行`choco install kubernetes-helm`可安装好helm。
+|对比|Kubernetes Dashboard（已归档）|Headlamp|
+|---|---|---|
+|维护状态|不再提供安全更新|由SIG UI持续维护|
+|部署形态|仅支持集群内部署，依赖Kong网关的多容器架构|支持集群内部署，也可作为桌面应用本地运行|
+|集群范围|单集群|多集群，可在同一界面内切换|
+|认证方式|仅ServiceAccount Token|ServiceAccount、kubeconfig、OIDC|
+|扩展性|无插件机制|提供插件系统，可为CRD定制视图|
+|权限模型|遵循RBAC|遵循RBAC，且界面控件按用户权限动态收敛|
+
+需要区分的是，AWS控制台中另有一项名为Amazon EKS Dashboard的原生功能，其定位是跨账号与跨区域聚合集群清单、Kubernetes版本分布、扩展支持状态以及Add-on版本等治理信息，仅可从AWS Organizations管理账号或EKS委派管理员账号访问，并不提供集群内Pod与Deployment层面的浏览与操作能力。该功能与本章节所部署的Headlamp是互补关系而非替代关系。
+
+### 1、部署Headlamp控制面板
+
+前文在安装`eksctl`命令时候，已经在MacOS和Windows上安装helm。如果还没安装，那么在MacOS上执行`brew install helm`可安装好helm，在Windows上执行`choco install kubernetes-helm`可安装好helm。Headlamp同样以Helm作为集群内部署的唯一方式。
+
+执行如下命令添加仓库并完成部署：
 
 ```
-helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
-helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard
+helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
+helm upgrade --install headlamp headlamp/headlamp --create-namespace --namespace kubernetes-dashboard
 ```
 
 返回结果如下：
 
 ```
-Release "kubernetes-dashboard" does not exist. Installing it now.
-NAME: kubernetes-dashboard
-LAST DEPLOYED: Tue Jul  2 23:51:31 2024
+Release "headlamp" does not exist. Installing it now.
+NAME: headlamp
+LAST DEPLOYED: Thu Sep 17 19:45:16 2026
 NAMESPACE: kubernetes-dashboard
 STATUS: deployed
 REVISION: 1
+DESCRIPTION: Install complete
 TEST SUITE: None
 NOTES:
-*************************************************************************************************
-*** PLEASE BE PATIENT: Kubernetes Dashboard may need a few minutes to get up and become ready ***
-*************************************************************************************************
-
-Congratulations! You have just installed Kubernetes Dashboard in your cluster.
-
-To access Dashboard run:
-  kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard-kong-proxy 8443:443
-
-NOTE: In case port-forward command does not work, make sure that kong service name is correct.
-      Check the services in Kubernetes Dashboard namespace using:
-        kubectl -n kubernetes-dashboard get svc
-
-Dashboard will be available at:
-  https://localhost:8443
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace kubernetes-dashboard -l "app.kubernetes.io/name=headlamp,app.kubernetes.io/instance=headlamp" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace kubernetes-dashboard $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace kubernetes-dashboard port-forward $POD_NAME 8080:$CONTAINER_PORT
+2. Get the token using
+  kubectl create token headlamp --namespace kubernetes-dashboard
 ```
 
-注意此窗口执行之后不要关闭，因为这个命令会转发Dashboard的443端口到本机的8443端口。
+备注：上述命令沿用了`kubernetes-dashboard`作为命名空间名称，目的是与本文后续的清理步骤保持一致。该名称并无特殊含义，读者可自行替换为`headlamp`等其他名称，但需注意本章节后续所有命令中的命名空间参数需同步修改。
+
+执行如下命令确认Pod已经正常启动：
+
+```
+kubectl get pods -n kubernetes-dashboard
+```
+
+返回结果如下Running表示运行正常。
+
+```
+NAME                        READY   STATUS    RESTARTS   AGE
+headlamp-56bb65b857-d9zf7   1/1     Running   0          34s
+```
+
+接下来执行如下命令，将集群内的Headlamp服务转发到本机端口：
+
+```
+kubectl --namespace kubernetes-dashboard port-forward svc/headlamp 8080:80
+```
+
+注意此窗口执行之后不要关闭，因为这个命令会转发Headlamp Service的80端口到本机的8080端口。此处与原Dashboard的差异在于，原Dashboard经由Kong网关暴露HTTPS的443端口并转发到本机8443端口，而Headlamp直接暴露HTTP的80端口并转发到本机8080端口，因此后续访问地址的协议与端口都随之变化。
 
 ### 2、生成用户和Token
 
@@ -336,34 +369,40 @@ kubectl -n kubernetes-dashboard create serviceaccount admin
 kubectl -n kubernetes-dashboard create token admin
 ```
 
+以上两条命令属于Kubernetes原生操作，在替换为Headlamp之后无需改动。此外，Headlamp的Helm chart在安装时已自带名为`headlamp`的ServiceAccount，因此也可以直接执行如下官方推荐命令获取Token，效果等同：
+
+```
+kubectl create token headlamp --namespace kubernetes-dashboard
+```
+
 返回结果如下：
 
 ```
 eyJhbGciOiJSUzI1NiIsImtpZCI6IjVmOTNlYjFlMDUwOGFhYjE2M2Q4YzcwM2U5MjZlOTRjMzlmNDNkMDcifQ.eyJhdWQiOlsizHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjIl0sImV4cCI6MTcxOTkzOTUxMiwiaWF0IjoxNzE5OTM1OTEyLCJpc3MiOiJodHRwczovL29pZGMuZWtzLmFwLXNvdXRoZWFzdC0xLmFtYXpvbmF3cy5jb20vaWQvMUI0MjE1QUE3RDY1MUY1QjMyMTMwMjY0NUMyRjdERTUiLCJqdGkiOiJmNGI3N2I4Ny0wOTQ0LTQ0MjYtOGNiYy1hOWI3MmI2M2ZmZGQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6Imt1YmVybmV0ZXMtZGFzaGJvYXJkIiwic2VydmljZWFjY291bnQiOnsibmFtZSI4ImFkbWluIiwidWlkIjoiY2NlNDc4YzUtMjY5ZS00MDMyLWEwYTMtOTg4MzJlNDc1YzVlIn19LCJuYmYiOjE3MTk5MzU5MTIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlcm5ldGVzLWRhc2hib2FyZDphZG1pbiJ9.LXMF3t3vaSgby4FMH9wG612EI6j__1ng-G8sdL2dqalQUyLuDBZMsD8fSDJmqrk5xIbxNi8NzVyqLsYmbM4IqukXAC1YpG3BIBQy7dv5mB04xea8ttzioSABEFeYREoycptmfvCrJ95Z5MhUy3wqMia6D8Up838P6q5iG9kSB7wd3CCcQAJXDUTWgIBVr8uhVGzEZvo72T9YsTCkwQPx30mj0lPXwBDA_HHCMNOBW-Kt26jMZFPHUFeINEFkQKSY_Fp2Xx23P05ZczkNFN0WkCcVp7zCtzEqiDz-o5pdztpNkvZD-6fTuupUUBb3HTtzjve_scz6vO-7RqS6NWh02Q
 ```
 
-### 3、登陆Dashboard
+### 3、登陆Headlamp
 
-在实验者的本机上访问如下地址：
+在实验者的本机上访问如下地址。请注意这里是HTTP协议的8080端口，而非原Dashboard使用的HTTPS协议8443端口：
 
 ```
-https://127.0.0.1:8443/#/login
+http://127.0.0.1:8080
 ```
 
-登录页面打开后，在`Bearer token`位置输入上一步获取的token，即可访问dashboard.
+登录页面打开后，在`Bearer token`位置输入上一步获取的token，即可访问Headlamp。由于Headlamp完全遵循Kubernetes的RBAC进行鉴权，如果所使用的token对应的ServiceAccount权限过低，登录后将无法看到集群内的资源。因此在实验环境中建议使用具备`cluster-admin`权限的ServiceAccount，生产环境则应按最小权限原则单独规划RBAC。
 
-至此Dashboard配置完成。
+至此Headlamp配置完成。
  
-### 4、删除Dashboard服务（可选）
+### 4、删除Headlamp服务（可选）
 
-测试完成后，如果需要删除Dashboard，执行如下命令。
+测试完成后，如果需要删除Headlamp，执行如下命令。
 
 ```
-helm uninstall kubernetes-dashboard -n kubernetes-dashboard
+helm uninstall headlamp -n kubernetes-dashboard
 kubectl delete namespaces kubernetes-dashboard
 ```
 
-本命令为可选，可保留Dashboard，在后续实验中也可以继续通过Dashboard做监控。
+本命令为可选，可保留Headlamp，在后续实验中也可以继续通过Headlamp做监控。
 
 ## 六、部署Nginx测试应用并使用NodePort+NLB模式对外暴露服务
 
@@ -457,7 +496,7 @@ service-nginx   LoadBalancer   10.50.0.119   aaa836fe8800b4b1db39802cc604d650-7b
 
 用浏览器访问ELB地址，即可验证应用启动结果。
 
-### 3、测试从命令行访问（可选）
+### 4、测试从命令行访问（可选）
 
 也可以在命令行上通过curl命令访问。
 
@@ -487,7 +526,7 @@ curl -m3 -v 上文获取到的NLB入口地址
 
 由此即可访问到测试应用，看到 Welcome to nginx! 即表示访问成功。 
 
-### 4、删除服务（可选）
+### 5、删除服务（可选）
 
 执行如下命令：
 
@@ -495,10 +534,30 @@ curl -m3 -v 上文获取到的NLB入口地址
 kubectl delete -f nginx-nlb.yaml
 ```
 
-至此服务删除完成。
+至此服务删除完成。请注意在删除整个集群之前，务必先执行本命令删除Service，以确保NLB及其自动创建的安全组被Kubernetes正常回收。若跳过此步直接删除集群，残留的ENI会导致VPC删除失败。
 
 ## 七、参考文档
 
-K8S的Dashboard安装：
+Kubernetes官方博客关于从Kubernetes Dashboard迁移到Headlamp的说明：
 
-[https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/]()
+[https://kubernetes.io/blog/2026/06/01/dashboard-to-headlamp/](https://kubernetes.io/blog/2026/06/01/dashboard-to-headlamp/)
+
+Kubernetes官方工具参考页面中的Headlamp条目：
+
+[https://kubernetes.io/docs/reference/tools/](https://kubernetes.io/docs/reference/tools/)
+
+Headlamp项目仓库，位于kubernetes-sigs组织下：
+
+[https://github.com/kubernetes-sigs/headlamp](https://github.com/kubernetes-sigs/headlamp)
+
+已归档的Kubernetes Dashboard仓库及其继任说明：
+
+[https://github.com/kubernetes-retired/dashboard](https://github.com/kubernetes-retired/dashboard)
+
+AWS官方kubectl安装文档：
+
+[https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html)
+
+Amazon EKS Dashboard官方文档，用于区分同名但定位不同的AWS原生功能：
+
+[https://docs.aws.amazon.com/eks/latest/userguide/cluster-dashboard.html](https://docs.aws.amazon.com/eks/latest/userguide/cluster-dashboard.html)
