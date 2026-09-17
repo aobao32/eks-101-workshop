@@ -1,6 +1,6 @@
 # 实验四、在ARM架构上构建应用并使用ALB Ingress部署应用
 
-EKS 1.30 版本 @2024-07 AWS Global区域测试通过
+EKS 1.36版本 @2026 AWS Global区域测试通过
 
 ## 一、关于多架构支持
 
@@ -18,9 +18,9 @@ kubectl get nodes --label-columns=kubernetes.io/arch
 
 ```
 NAME                                                STATUS   ROLES    AGE   VERSION               ARCH
-ip-192-168-6-252.ap-southeast-1.compute.internal    Ready    <none>   45m   v1.30.0-eks-036c24b   arm64
-ip-192-168-60-2.ap-southeast-1.compute.internal     Ready    <none>   45m   v1.30.0-eks-036c24b   arm64
-ip-192-168-89-203.ap-southeast-1.compute.internal   Ready    <none>   45m   v1.30.0-eks-036c24b   arm64
+ip-192-168-6-252.ap-southeast-1.compute.internal    Ready    <none>   45m   v1.36.1-eks-xxxxxxx   arm64
+ip-192-168-60-2.ap-southeast-1.compute.internal     Ready    <none>   45m   v1.36.1-eks-xxxxxxx   arm64
+ip-192-168-89-203.ap-southeast-1.compute.internal   Ready    <none>   45m   v1.36.1-eks-xxxxxxx   arm64
 ```
 
 接下来为ARM架构构建镜像并上传到ECR。
@@ -435,11 +435,11 @@ kubectl delete -f php-arm.yaml
 
 AWS Load Balancer Controller Ingress annotations 参数说明
 
-[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/annotations/](h)
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.13/guide/ingress/annotations/]()
 
 AWS Load Balancer Controller Ingress specification 参数说明
 
-[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/ingress/spec/]()
+[https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.13/guide/ingress/spec/]()
 
 手把手教你如何在 EKS 上轻松部署混合架构节点
 

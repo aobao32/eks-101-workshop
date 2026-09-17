@@ -1,6 +1,6 @@
 # 实验三、启用CloudWatch Container Insight、新建Nodegroup节点组以及调整节点组机型配置
 
-EKS 1.30 版本 @2024-07 AWS Global区域测试通过
+EKS 1.36版本 @2026 AWS Global区域测试通过
 
 ## 一、启用CloudWatch Container Insight
 
@@ -128,12 +128,12 @@ kubectl get node
 
 ```
 NAME                                                STATUS   ROLES    AGE   VERSION
-ip-192-168-0-22.ap-southeast-1.compute.internal     Ready    <none>   17h   v1.30.0-eks-036c24b
-ip-192-168-41-21.ap-southeast-1.compute.internal    Ready    <none>   76s   v1.30.0-eks-036c24b
-ip-192-168-42-0.ap-southeast-1.compute.internal     Ready    <none>   17h   v1.30.0-eks-036c24b
-ip-192-168-8-168.ap-southeast-1.compute.internal    Ready    <none>   74s   v1.30.0-eks-036c24b
-ip-192-168-82-107.ap-southeast-1.compute.internal   Ready    <none>   72s   v1.30.0-eks-036c24b
-ip-192-168-93-206.ap-southeast-1.compute.internal   Ready    <none>   17h   v1.30.0-eks-036c24b
+ip-192-168-0-22.ap-southeast-1.compute.internal     Ready    <none>   17h   v1.36.1-eks-xxxxxxx
+ip-192-168-41-21.ap-southeast-1.compute.internal    Ready    <none>   76s   v1.36.1-eks-xxxxxxx
+ip-192-168-42-0.ap-southeast-1.compute.internal     Ready    <none>   17h   v1.36.1-eks-xxxxxxx
+ip-192-168-8-168.ap-southeast-1.compute.internal    Ready    <none>   74s   v1.36.1-eks-xxxxxxx
+ip-192-168-82-107.ap-southeast-1.compute.internal   Ready    <none>   72s   v1.36.1-eks-xxxxxxx
+ip-192-168-93-206.ap-southeast-1.compute.internal   Ready    <none>   17h   v1.36.1-eks-xxxxxxx
 ```
 
 ### 4、缩小EC2节点组容量
@@ -151,6 +151,8 @@ eksctl scale nodegroup --cluster=eksworkshop --region=ap-southeast-1 --name=mana
 ### 1、增加ARM机型Nodegroup的系统插件升级（建议EKS低于1.28版本的升级）
 
 如果您的EKS版本低于1.28，建议进行升级。如果等于或者高于1.28版本，可选升级。
+
+更新：本文当前基线版本为EKS 1.36，已远高于1.28，因此升级已非必需。下述组件版本检查命令在1.36版本下仍然适用，可用于确认`coredns`、`kube-proxy`、`aws-node`等系统组件是否为最新版本。
 
 运行如下命令检查系统组件是否为最新版本。本命令仅检查版本，不会触发升级。替换如下命令中的集群名称为实际集群名称，然后执行如下命令：
 
@@ -208,7 +210,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.30"
+  version: "1.36"
 
 managedNodeGroups:
   - name: newng
@@ -231,11 +233,12 @@ managedNodeGroups:
         efs: true
         ebs: true
         fsx: true
-        albIngress: true
         awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
 ```
+
+注意：上述配置文件的`metadata.version`已设置为`"1.36"`，与实验一创建集群时的版本保持一致。同时`iam.withAddonPolicies`代码块中已移除`albIngress: true`一行，仅保留`awsLoadBalancerController: true`。原因在于`albIngress`参数在新版本中已被废弃，其功能由`awsLoadBalancerController`取代，二者语义重叠，若继续保留`albIngress`会导致配置冗余或校验告警。
 
 注：如果您需要使用Intel处理器机型，请替换上文中的`m6g.2xlarge`为`m6i.2xlarge`即可使用Intel处理器机型。
 
@@ -248,7 +251,7 @@ eksctl create nodegroup -f nodegroup-arm.yaml
 执行结果如下。
 
 ```
-2024-07-03 15:35:36 [ℹ]  nodegroup "newng" will use "" [AmazonLinux2023/1.30]
+2024-07-03 15:35:36 [ℹ]  nodegroup "newng" will use "" [AmazonLinux2023/1.36]
 2024-07-03 15:35:39 [ℹ]  1 existing nodegroup(s) (managed-ng) will be excluded
 2024-07-03 15:35:39 [ℹ]  1 nodegroup (newng) was included (based on the include/exclude rules)
 2024-07-03 15:35:39 [ℹ]  will create a CloudFormation stack for each of 1 managed nodegroups in cluster "eksworkshop"
@@ -307,12 +310,12 @@ kubectl get nodes --label-columns=kubernetes.io/arch
 
 ```
 NAME                                                STATUS   ROLES    AGE     VERSION               ARCH
-ip-192-168-41-21.ap-southeast-1.compute.internal    Ready    <none>   29m     v1.30.0-eks-036c24b   amd64
-ip-192-168-6-252.ap-southeast-1.compute.internal    Ready    <none>   3m59s   v1.30.0-eks-036c24b   arm64
-ip-192-168-60-2.ap-southeast-1.compute.internal     Ready    <none>   3m59s   v1.30.0-eks-036c24b   arm64
-ip-192-168-8-168.ap-southeast-1.compute.internal    Ready    <none>   29m     v1.30.0-eks-036c24b   amd64
-ip-192-168-82-107.ap-southeast-1.compute.internal   Ready    <none>   29m     v1.30.0-eks-036c24b   amd64
-ip-192-168-89-203.ap-southeast-1.compute.internal   Ready    <none>   4m2s    v1.30.0-eks-036c24b   arm64
+ip-192-168-41-21.ap-southeast-1.compute.internal    Ready    <none>   29m     v1.36.1-eks-xxxxxxx   amd64
+ip-192-168-6-252.ap-southeast-1.compute.internal    Ready    <none>   3m59s   v1.36.1-eks-xxxxxxx   arm64
+ip-192-168-60-2.ap-southeast-1.compute.internal     Ready    <none>   3m59s   v1.36.1-eks-xxxxxxx   arm64
+ip-192-168-8-168.ap-southeast-1.compute.internal    Ready    <none>   29m     v1.36.1-eks-xxxxxxx   amd64
+ip-192-168-82-107.ap-southeast-1.compute.internal   Ready    <none>   29m     v1.36.1-eks-xxxxxxx   amd64
+ip-192-168-89-203.ap-southeast-1.compute.internal   Ready    <none>   4m2s    v1.36.1-eks-xxxxxxx   arm64
 ```
 
 ### 4、驱逐原Nodegroup上的Pod（可选）

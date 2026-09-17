@@ -1,6 +1,6 @@
 # 实验二、部署AWS Load Balancer Controller
 
-EKS 1.30版本 @2024-07 AWS Global区域测试通过
+EKS 1.36版本 @2026 AWS Global区域测试通过
 
 ## 一、部署AWS Load Balancer Controller
 
@@ -18,6 +18,8 @@ eksctl utils associate-iam-oidc-provider --region ap-southeast-1 --cluster ekswo
 2024-07-03 08:51:09 [ℹ]  will create IAM Open ID Connect provider for cluster "eksworkshop" in "ap-southeast-1"
 2024-07-03 08:51:11 [✔]  created IAM Open ID Connect provider for cluster "eksworkshop" in "ap-southeast-1"
 ```
+
+备注：自EKS 1.36起，集群默认采用访问条目（Access Entries）机制管理IAM身份的集群访问权限。使用eksctl创建集群时，默认的认证模式为`API_AND_CONFIG_MAP`，即同时支持访问条目与传统的`aws-auth` ConfigMap；若集群被设置为纯`API`模式，则`aws-auth` ConfigMap不再生效。本实验通过`eksctl create iamserviceaccount`结合IAM OIDC身份提供商为控制器授予权限，属于IRSA（IAM Roles for Service Accounts）机制，与上述集群访问认证模式相互独立，因此以下操作步骤在1.36版本下无需调整，可按原流程执行。
 
 ### 2、创建IAM Policy（请注意区分Global区域和中国区配置文件）
 

@@ -1,6 +1,6 @@
 # 实验一、创建EKS集群
 
-EKS 1.30版本 @2024-07 AWS Global区域测试通过
+EKS 1.36版本 @2026 AWS Global区域测试通过
 
 ## 一、AWSCLI安装和AKSK准备
 
@@ -45,7 +45,7 @@ choco install -y eksctl kubernetes-cli kubernetes-helm k9s jq curl wget vim 7zip
 ```
 curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
 sudo mv /tmp/eksctl /bin
-curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.30.0/2024-05-12/bin/linux/amd64/kubectl
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.36.2/2026-07-05/bin/linux/amd64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
@@ -56,13 +56,17 @@ eksctl version
 ```
 curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_arm64.tar.gz" | tar xz -C /tmp
 sudo mv /tmp/eksctl /bin
-curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.30.0/2024-05-12/bin/linux/arm64/kubectl
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.36.2/2026-07-05/bin/linux/arm64/kubectl
 chmod 755 kubectl
 sudo mv kubectl /bin
 eksctl version
 ```
 
 安装完毕后即可看到eksctl版本，同时kubectl也下载完毕。
+
+注意：上述kubectl下载路径中的补丁版本号与日期会随EKS版本的迭代而持续更新，读者应以AWS官方安装文档所列出的实际补丁版本与日期为准进行替换，以免因路径不存在而导致下载失败。
+
+[AWS官方kubectl安装文档](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html)
 
 ### 3、MacOS下安装eksctl和kubectl工具
 
@@ -95,6 +99,14 @@ EKS集群分成EC2模式和无EC2的Fargate模式。本文为有EC2模式的配�
 - 创建集群时候，如果不指定参数，那么eksctl默认会自动生成一个全新的VPC、子网并使用192.168的网段，然后在其中创建nodegroup节点组。此时如果希望位于默认VPC的现有业务系统与EKS互通，那么需要配置VPC Peering才可以打通网络；如果需求是此场景，请参考下述第一个章节所介绍的方式创建配置文件；
 - 如果希望EKS使用现有VPC和子网，例如一个包含有Public Subnet/Private Subnet和NAT Gateway的VPC，那么请使用第二个章节所介绍的方式创建配置文件。
 
+注意：本文下述两个配置文件均已适配EKS 1.36版本，`metadata.version`字段设置为`"1.36"`。同时`iam.withAddonPolicies`代码块中已移除`albIngress: true`一行。原因在于`albIngress`参数在新版本中已被废弃，其功能由`awsLoadBalancerController`取代，二者语义重叠，若继续保留`albIngress`会导致配置冗余或校验告警，因此仅保留`awsLoadBalancerController: true`。
+
+注意：EKS 1.36默认启用了StrictIPCIDRValidation（严格IP与CIDR校验）机制，IP地址与CIDR不再接受带前导零的非规范写法（例如`010.000.000.005`），也不再接受主机位非零的非规范CIDR（例如`192.168.0.5/24`应改写为规范形式`192.168.0.0/24`）。本文配置中的`serviceIPv4CIDR: 10.50.0.0/24`已是规范写法，可以直接保留。读者在自定义Service网段或其他CIDR参数时，必须使用规范的CIDR写法，否则集群创建会因校验失败而中止。
+
+注意：gitRepo卷类型在EKS 1.36中被永久移除，kubelet将拒绝运行挂载了该卷类型的Pod。若既有工作负载依赖gitRepo卷从Git仓库拉取内容，需迁移到init container在启动阶段克隆仓库，或采用git-sync sidecar容器持续同步的方式替代。
+
+备注：cgroup v1的退役分为两个阶段。自EKS 1.35起，cgroup v1进入弃用阶段，kubelet默认拒绝在仍使用cgroup v1的节点上启动；至EKS 1.36正式移除对cgroup v1的支持。与此同时，容器运行时containerd推荐升级到2.0版本以获得完整的cgroup v2支持。本文所使用的节点默认基于AL2023镜像，其默认已启用cgroup v2，因此通常不受该变更影响。
+
 ### 1、创建全新VPC
 
 执行如下命令。注意如果是多人在同一个账号内实验，需要更改EKS集群的名字避免冲突。如果多人在不同账号内做实验，无需修改名称，默认的名称即可。
@@ -108,7 +120,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.30"
+  version: "1.36"
 
 vpc:
   clusterEndpoints:
@@ -141,7 +153,6 @@ managedNodeGroups:
         efs: true
         ebs: true
         fsx: true
-        albIngress: true
         awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
@@ -191,7 +202,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.30"
+  version: "1.36"
 
 vpc:
   clusterEndpoints:
@@ -234,7 +245,6 @@ managedNodeGroups:
         efs: true
         ebs: true
         fsx: true
-        albIngress: true
         awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
@@ -267,9 +277,9 @@ kubectl get node
 
 ```
 NAME                                                STATUS   ROLES    AGE     VERSION
-ip-192-168-0-22.ap-southeast-1.compute.internal     Ready    <none>   8m12s   v1.30.0-eks-036c24b
-ip-192-168-42-0.ap-southeast-1.compute.internal     Ready    <none>   8m14s   v1.30.0-eks-036c24b
-ip-192-168-93-206.ap-southeast-1.compute.internal   Ready    <none>   8m17s   v1.30.0-eks-036c24b
+ip-192-168-0-22.ap-southeast-1.compute.internal     Ready    <none>   8m12s   v1.36.1-eks-xxxxxxx
+ip-192-168-42-0.ap-southeast-1.compute.internal     Ready    <none>   8m14s   v1.36.1-eks-xxxxxxx
+ip-192-168-93-206.ap-southeast-1.compute.internal   Ready    <none>   8m17s   v1.36.1-eks-xxxxxxx
 ```
 
 ## 五、创建集群并配置Dashboard图形界面（本章节可选）

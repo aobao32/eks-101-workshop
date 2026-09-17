@@ -4,7 +4,7 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.30"
+  version: "1.36"
 
 vpc:
   clusterEndpoints:
@@ -47,7 +47,6 @@ managedNodeGroups:
         efs: true
         ebs: true
         fsx: true
-        albIngress: true
         awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
