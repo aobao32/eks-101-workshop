@@ -64,6 +64,10 @@ eksctl version
 
 安装完毕后即可看到eksctl版本，同时kubectl也下载完毕。
 
+注意：上述kubectl下载路径中的补丁版本号与日期会随EKS版本的迭代而持续更新，读者应以AWS官方安装文档所列出的实际补丁版本与日期为准进行替换，以免因路径不存在而导致下载失败。
+
+[AWS官方kubectl安装文档](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html)
+
 ### 3、MacOS下安装eksctl和kubectl工具
 
 先安装homebrew包管理工具。这一步需要从Github下载，因此最好能使用国外VPN确保安装成功。
@@ -101,7 +105,7 @@ EKS集群分成EC2模式和无EC2的Fargate模式。本文为有EC2模式的配�
 
 注意：gitRepo卷类型在EKS 1.36中被永久移除，kubelet将拒绝运行挂载了该卷类型的Pod。若既有工作负载依赖gitRepo卷从Git仓库拉取内容，需迁移到init container在启动阶段克隆仓库，或采用git-sync sidecar容器持续同步的方式替代。
 
-备注：自EKS 1.35起，cgroup v1已被移除，容器运行时containerd要求升级到2.0版本。本文所使用的节点默认基于AL2023镜像，其默认已启用cgroup v2，因此通常不受该变更影响。
+备注：cgroup v1的退役分为两个阶段。自EKS 1.35起，cgroup v1进入弃用阶段，kubelet默认拒绝在仍使用cgroup v1的节点上启动；至EKS 1.36正式移除对cgroup v1的支持。与此同时，容器运行时containerd推荐升级到2.0版本以获得完整的cgroup v2支持。本文所使用的节点默认基于AL2023镜像，其默认已启用cgroup v2，因此通常不受该变更影响。
 
 ### 1、创建全新VPC
 
