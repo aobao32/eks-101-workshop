@@ -286,6 +286,14 @@ ip-192-168-93-206.ap-southeast-1.compute.internal   Ready    <none>   8m17s   v1
 
 注意：在`eksctl`已经输出集群创建完成之后的数分钟内，部分节点可能出现`NotReady`状态，此时执行`kubectl describe node`可以看到节点状态为`Ready=False`，原因是`KubeletNotReady`，消息内容为`node is shutting down`。这属于AL2023镜像节点在首次引导阶段的一次性重启，通过`kubectl get events`可以观察到对应的`Rebooted`事件与变更后的boot id，而在EC2控制台上可以确认实例始终处于`running`状态且未被替换。该现象通常在2至3分钟内自动恢复，无需人工干预，也不需要重建节点组。同时`kube-system`命名空间内会残留若干`Completed`状态的CoreDNS与metrics-server旧副本，属于该重启周期的产物，可以忽略。
 
+关于上述现象，实测中还有两点需要补充。第一点是该现象的出现时间并不固定，可能延后到集群创建完成之后的4至8分钟才发生，因此在`eksctl`执行结束时立即检查得到全部节点`Ready`的结果，并不代表已经规避，建议在部署业务负载前再复查一次节点状态。第二点是除`Rebooted`事件之外，还会伴随出现`NodeShutdown`类型的告警事件，其消息内容为`Pod was rejected as the node is shutting down`，表示该节点在重启窗口内拒绝了新Pod的调度。执行如下命令可以集中查看这两类事件：
+
+```
+kubectl get events -A --sort-by=.lastTimestamp | grep -iE "reboot|shutting"
+```
+
+若节点重启发生在已经部署工作负载之后，受影响节点上的Pod会被重建，原Pod则以`Completed`状态残留。由于本文第五章的端口转发指向的是Service而非具体Pod，Headlamp在其Pod被重建后仍可通过原有转发继续访问，无需重新执行`port-forward`命令。
+
 ## 五、创建集群并配置Headlamp图形界面（本章节可选）
 
 本章节可跳过不影响后续实验。
@@ -362,20 +370,33 @@ kubectl --namespace kubernetes-dashboard port-forward svc/headlamp 8080:80
 
 ### 2、生成用户和Token
 
-新开一个命令行，执行如下命令生成个用户并获取Token：
+新开一个命令行获取Token。这里有两种方式，推荐使用第一种。
 
-```
-kubectl -n kubernetes-dashboard create serviceaccount admin
-kubectl -n kubernetes-dashboard create token admin
-```
-
-以上两条命令属于Kubernetes原生操作，在替换为Headlamp之后无需改动。此外，Headlamp的Helm chart在安装时已自带名为`headlamp`的ServiceAccount，因此也可以直接执行如下官方推荐命令获取Token，效果等同：
+方式一是直接使用Headlamp自带的ServiceAccount。Headlamp的Helm chart在安装时已经创建了名为`headlamp`的ServiceAccount，并通过名为`headlamp-admin`的ClusterRoleBinding将其绑定到`cluster-admin`角色，因此该ServiceAccount开箱即具备完整的集群读写权限，执行如下命令即可获取可用的Token：
 
 ```
 kubectl create token headlamp --namespace kubernetes-dashboard
 ```
 
-返回结果如下：
+方式二是自行创建ServiceAccount。此时必须同时创建ClusterRoleBinding，否则该ServiceAccount不具备任何权限。执行如下三条命令：
+
+```
+kubectl -n kubernetes-dashboard create serviceaccount admin
+kubectl create clusterrolebinding admin-cluster-admin --clusterrole=cluster-admin --serviceaccount=kubernetes-dashboard:admin
+kubectl -n kubernetes-dashboard create token admin
+```
+
+请不要省略中间那条创建ClusterRoleBinding的命令。Headlamp完全依据Kubernetes的RBAC进行鉴权，仅执行`create serviceaccount`而不做角色绑定时，生成的Token虽然可以通过登录校验，但登录后界面将无法列出任何集群资源。该权限状态可以通过如下命令验证：
+
+```
+kubectl auth can-i get pods -A --as=system:serviceaccount:kubernetes-dashboard:admin
+```
+
+未绑定角色时返回`no`，完成绑定后返回`yes`。
+
+注意：`cluster-admin`是集群的最高权限角色，上述用法仅适用于本文的实验环境。生产环境中应按最小权限原则，为图形界面使用者单独定义仅包含所需资源与动词的ClusterRole，避免直接授予`cluster-admin`。
+
+获取Token的返回结果如下：
 
 ```
 eyJhbGciOiJSUzI1NiIsImtpZCI6IjVmOTNlYjFlMDUwOGFhYjE2M2Q4YzcwM2U5MjZlOTRjMzlmNDNkMDcifQ.eyJhdWQiOlsizHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjIl0sImV4cCI6MTcxOTkzOTUxMiwiaWF0IjoxNzE5OTM1OTEyLCJpc3MiOiJodHRwczovL29pZGMuZWtzLmFwLXNvdXRoZWFzdC0xLmFtYXpvbmF3cy5jb20vaWQvMUI0MjE1QUE3RDY1MUY1QjMyMTMwMjY0NUMyRjdERTUiLCJqdGkiOiJmNGI3N2I4Ny0wOTQ0LTQ0MjYtOGNiYy1hOWI3MmI2M2ZmZGQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6Imt1YmVybmV0ZXMtZGFzaGJvYXJkIiwic2VydmljZWFjY291bnQiOnsibmFtZSI4ImFkbWluIiwidWlkIjoiY2NlNDc4YzUtMjY5ZS00MDMyLWEwYTMtOTg4MzJlNDc1YzVlIn19LCJuYmYiOjE3MTk5MzU5MTIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlcm5ldGVzLWRhc2hib2FyZDphZG1pbiJ9.LXMF3t3vaSgby4FMH9wG612EI6j__1ng-G8sdL2dqalQUyLuDBZMsD8fSDJmqrk5xIbxNi8NzVyqLsYmbM4IqukXAC1YpG3BIBQy7dv5mB04xea8ttzioSABEFeYREoycptmfvCrJ95Z5MhUy3wqMia6D8Up838P6q5iG9kSB7wd3CCcQAJXDUTWgIBVr8uhVGzEZvo72T9YsTCkwQPx30mj0lPXwBDA_HHCMNOBW-Kt26jMZFPHUFeINEFkQKSY_Fp2Xx23P05ZczkNFN0WkCcVp7zCtzEqiDz-o5pdztpNkvZD-6fTuupUUBb3HTtzjve_scz6vO-7RqS6NWh02Q
@@ -389,7 +410,7 @@ eyJhbGciOiJSUzI1NiIsImtpZCI6IjVmOTNlYjFlMDUwOGFhYjE2M2Q4YzcwM2U5MjZlOTRjMzlmNDNk
 http://127.0.0.1:8080
 ```
 
-登录页面打开后，在`Bearer token`位置输入上一步获取的token，即可访问Headlamp。由于Headlamp完全遵循Kubernetes的RBAC进行鉴权，如果所使用的token对应的ServiceAccount权限过低，登录后将无法看到集群内的资源。因此在实验环境中建议使用具备`cluster-admin`权限的ServiceAccount，生产环境则应按最小权限原则单独规划RBAC。
+登录页面打开后，在`Bearer token`位置输入上一步获取的token，即可访问Headlamp。如果登录成功但界面中看不到任何集群资源，说明所用Token对应的ServiceAccount缺少角色绑定，请回到上一节按方式二补全ClusterRoleBinding。
 
 至此Headlamp配置完成。
  
