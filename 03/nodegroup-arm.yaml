@@ -10,14 +10,12 @@ managedNodeGroups:
   - name: newng
     labels:
       Name: newng
-    instanceType: t4g.xlarge
+    instanceType: m6g.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
     volumeType: gp3
     volumeSize: 100
-    volumeIOPS: 3000
-    volumeThroughput: 125
     tags:
       nodegroup-name: newng
     iam:
