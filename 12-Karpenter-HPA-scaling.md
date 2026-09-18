@@ -57,7 +57,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:
@@ -684,7 +684,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:

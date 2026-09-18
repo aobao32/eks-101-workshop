@@ -180,7 +180,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-ec2nodegroup
-  namespace: 	test1-ec2nodegroup
+  namespace: test1-ec2nodegroup
   labels:
     app: nginx-ec2nodegroup
 spec:
@@ -195,7 +195,7 @@ spec:
     spec:
       containers:
       - name: nginx-ec2nodegroup
-        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         ports:
         - containerPort: 80
 ---
@@ -310,7 +310,7 @@ spec:
     spec:
       containers:
       - name: nginx-fargate-pod
-        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         resources:
           requests:
             cpu: "0.5"
@@ -419,7 +419,7 @@ spec:
     spec:
       containers:
       - name: nginx-mixed-ec2
-        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         ports:
         - containerPort: 80
 ---
@@ -472,7 +472,7 @@ spec:
     spec:
       containers:
       - name: nginx-mixed-fargate
-        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
+        image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         resources:
           requests:
             cpu: "1"

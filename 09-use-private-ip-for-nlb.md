@@ -56,7 +56,7 @@ EKS 1.30 版本 @2024-07 AWS Global区域测试通过
 
 编写如下yaml文件，替换其中的NLB参数和IP地址为需要使用的参数。
 
-注意：IP地址地址的总个数必须与上一步给子网做标记的子网数量相同。例如上一步有3个子网打了tag标签，那么这里也要提交3个IP。所有IP地址是字符串格式，需要前后加双引号的提交。此外，本例仅以使用外部的容器镜像仓库`public.ecr.aws/nginx/nginx:1.24-alpine-slim`作为例子，请替换其中的image镜像地址为您的ECR上的镜像地址。
+注意：IP地址地址的总个数必须与上一步给子网做标记的子网数量相同。例如上一步有3个子网打了tag标签，那么这里也要提交3个IP。所有IP地址是字符串格式，需要前后加双引号的提交。此外，本例仅以使用外部的容器镜像仓库`public.ecr.aws/nginx/nginx:1.31-alpine-slim`作为例子，请替换其中的image镜像地址为您的ECR上的镜像地址。
 
 ```
 ---
@@ -81,7 +81,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:

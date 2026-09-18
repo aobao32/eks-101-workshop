@@ -2,12 +2,12 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: private-nlb
+  name: private-nlb-fixed-ip
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: private-nlb
+  namespace: private-nlb-fixed-ip
   name: nginx-deployment
 spec:
   selector:
@@ -20,7 +20,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:
@@ -29,10 +29,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: private-nlb
+  namespace: private-nlb-fixed-ip
   name: "service-nginx"
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-name: myphpdemo
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: 172.31.48.254, 172.31.64.254, 172.31.80.254
 spec:
   loadBalancerClass: service.k8s.aws/nlb
   selector:

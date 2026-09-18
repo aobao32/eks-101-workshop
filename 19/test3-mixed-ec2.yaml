@@ -18,14 +18,7 @@ spec:
     spec:
       containers:
       - name: nginx-mixed-ec2
-        image: public.ecr.aws/nginx/nginx:1.24-alpine-slim
-        resources:
-          requests:
-            cpu: "1"
-            memory: "1G"
-          limits:
-            cpu: "1"
-            memory: "1G"
+        image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         ports:
         - containerPort: 80
 ---

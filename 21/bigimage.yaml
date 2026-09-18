@@ -8,7 +8,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bigimage2
-  namespace: 	bigimage
+  namespace: bigimage
   labels:
     app: bigimage2
 spec:
@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: bigimage2
-        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:7
+        image: 133129065110.dkr.ecr.ap-southeast-1.amazonaws.com/bigimage:3
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
