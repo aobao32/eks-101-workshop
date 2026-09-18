@@ -453,7 +453,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
+        image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         ports:
         - containerPort: 80
 ---
@@ -462,7 +462,7 @@ kind: Service
 metadata:
   name: "service-nginx"
   annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
 spec:
   selector:
     app: nginx
