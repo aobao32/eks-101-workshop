@@ -4,20 +4,18 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.30"
+  version: "1.36"
 
 managedNodeGroups:
   - name: newng
     labels:
       Name: newng
-    instanceType: t4g.xlarge
+    instanceType: m6g.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
     volumeType: gp3
     volumeSize: 100
-    volumeIOPS: 3000
-    volumeThroughput: 125
     tags:
       nodegroup-name: newng
     iam:
@@ -29,7 +27,6 @@ managedNodeGroups:
         efs: true
         ebs: true
         fsx: true
-        albIngress: true
         awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
