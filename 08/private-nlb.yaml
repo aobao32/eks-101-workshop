@@ -38,6 +38,8 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
     service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    service.beta.kubernetes.io/aws-load-balancer-subnets: subnet-04a7c6e7e1589c953, subnet-031022a6aab9b9e70, subnet-0eaf9054aa6daa68e
     service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: 172.31.48.254, 172.31.64.254, 172.31.80.254
 spec:
   loadBalancerClass: service.k8s.aws/nlb

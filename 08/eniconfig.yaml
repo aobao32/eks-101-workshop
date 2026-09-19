@@ -1,20 +1,26 @@
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
-metadata: 
+metadata:
   name: ap-southeast-1a
-spec: 
+spec:
   subnet: subnet-0691037d70aac39da
+  securityGroups:
+    - sg-0bc05dc2178acff1d
 ---
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
-metadata: 
+metadata:
   name: ap-southeast-1b
-spec: 
+spec:
   subnet: subnet-096d7481a653e3f47
+  securityGroups:
+    - sg-0bc05dc2178acff1d
 ---
 apiVersion: crd.k8s.amazonaws.com/v1alpha1
 kind: ENIConfig
-metadata: 
+metadata:
   name: ap-southeast-1c
-spec: 
+spec:
   subnet: subnet-0db55d7fb02249825
+  securityGroups:
+    - sg-0bc05dc2178acff1d
