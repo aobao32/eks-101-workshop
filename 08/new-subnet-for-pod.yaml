@@ -4,32 +4,31 @@ kind: ClusterConfig
 metadata:
   name: eksworkshop
   region: ap-southeast-1
-  version: "1.27"
+  version: "1.36"
 
 managedNodeGroups:
-  - name: newng1
+  - name: podsubnet-ng
     labels:
-      Name: newng1
-    instanceType: t4g.xlarge
+      Name: podsubnet-ng
+    instanceType: t3.2xlarge
     minSize: 3
     desiredCapacity: 3
     maxSize: 6
-    privateNetworking: true
-    subnets:
-      - subnet-04a7c6e7e1589c953
-      - subnet-031022a6aab9b9e70
-      - subnet-0eaf9054aa6daa68e
     volumeType: gp3
     volumeSize: 100
+    volumeIOPS: 3000
+    volumeThroughput: 125
     tags:
-      nodegroup-name: newng1
+      nodegroup-name: podsubnet-ng
     iam:
       withAddonPolicies:
         imageBuilder: true
         autoScaler: true
+        externalDNS: true
         certManager: true
         efs: true
         ebs: true
-        albIngress: true
+        fsx: true
+        awsLoadBalancerController: true
         xRay: true
         cloudWatch: true
