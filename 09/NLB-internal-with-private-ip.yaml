@@ -20,7 +20,7 @@ spec:
         app.kubernetes.io/name: nginx
     spec:
       containers:
-      - image: public.ecr.aws/nginx/nginx:1.27-alpine-slim
+      - image: public.ecr.aws/nginx/nginx:1.31-alpine-slim
         imagePullPolicy: Always
         name: nginx
         ports:
@@ -33,11 +33,13 @@ metadata:
   name: "service-nginx"
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
     service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
-    service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: "172.31.48.250, 172.31.64.250, 172.31.80.250"
+    service.beta.kubernetes.io/aws-load-balancer-subnets: subnet-049ad8896ca32ad98, subnet-0fa9c7b38b01cd9ba, subnet-053474fb58c51db51
+    service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses: "192.168.159.250, 192.168.191.250, 192.168.127.250"
 spec:
   loadBalancerClass: service.k8s.aws/nlb
   selector:
