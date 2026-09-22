@@ -197,7 +197,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bigimage2
-  namespace: 	bigimage
+  namespace: bigimage
   labels:
     app: bigimage2
 spec:

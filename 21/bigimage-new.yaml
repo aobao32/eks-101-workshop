@@ -8,7 +8,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bigimage1
-  namespace: 	bigimage-new
+  namespace: bigimage-new
   labels:
     app: bigimage1
 spec:
