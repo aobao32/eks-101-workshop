@@ -1,6 +1,6 @@
 # 使用EKS控制台的Addon功能升级EKS VPC CNI
 
-> 更新的到 EKS 1.36版本
+> 更新到 EKS 1.36版本
 
 本文介绍使用EKS控制台的Addon功能升级EKS插件。
 
