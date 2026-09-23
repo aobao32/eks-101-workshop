@@ -1,5 +1,7 @@
 # 使用EKS控制台的Addon功能升级EKS VPC CNI
 
+> 更新的到 EKS 1.36版本
+
 本文介绍使用EKS控制台的Addon功能升级EKS插件。
 
 ## 一、背景
@@ -28,24 +30,53 @@ kubectl describe daemonset aws-node --namespace kube-system
     
     建议您向集群添加 Amazon EKS 类型的附加组件，而不是自行管理类型的附加组件。如果集群是通过控制台创建的，则会安装这些附加组件的 Amazon EKS 类型。
 
-这是由于从非EKS控制台方式创建的集群，会带有self-managed的plug-in。而只有从EKS控制台创建的集群，才会包含EKS Managed Plug-in。二者互相独立。
+这是由于插件存在两种安装形态：EKS托管类型（Amazon EKS add-on）与自管理类型（self-managed）。以自管理形态安装的插件不会出现在控制台的Add-ons界面中，也无法通过控制台、CLI或SDK进行管理；只有以EKS托管形态安装的插件才会在Add-ons界面中显示并可被管理。二者互相独立。
+
+需要说明的是，当前较新版本的eksctl在创建集群时，默认会将vpc-cni、coredns、kube-proxy等核心插件以EKS托管形态安装，因此用eksctl新建的EKS 1.36集群在控制台中通常已经可以看到这些托管插件。本节描述的"看不到插件"的现象，主要出现在以自管理形态安装插件的集群上（例如通过manifest手工部署CNI，或使用不安装托管插件的创建方式）。可执行如下命令确认集群当前已安装的EKS托管插件清单：
+
+```shell
+aws eks list-addons --cluster-name eksworkshop --region ap-southeast-1 --output table
+```
+
+本文环境返回结果如下，可见核心插件均以EKS托管形态存在：
+
+```
+---------------------------------------
+|             ListAddons              |
++-------------------------------------+
+||              addons               ||
+|+-----------------------------------+|
+||  amazon-cloudwatch-observability  ||
+||  coredns                          ||
+||  kube-proxy                       ||
+||  metrics-server                   ||
+||  vpc-cni                          ||
+|+-----------------------------------+|
+```
 
 ### 2、EKS版本对aws-vpc-cni的版本要求
 
-执行如下命令查询当前集群用的版本：
+执行如下命令查询当前集群正在使用的VPC CNI版本：
 
 ```shell
 kubectl describe daemonset aws-node --namespace kube-system | grep amazon-k8s-cni: | cut -d : -f 3
 ```
 
-- 如果当前创建的是EKS 1.27版本，那么自带的VPC CNI是：v1.12.6-eksbuild.2
-- 如果当前创建的是EKS 1.28版本，那么自带的VPC CNI是：v1.14.1-eksbuild.1
+本文环境为EKS 1.36，查询到当前运行的版本为`v1.22.4-eksbuild.3`。
 
-EKS 1.28版本对CNI最低版本要求是1.13。因此如果只是单纯的将Control Plane升级到1.28，那么默认的VPC-CNI还有版本不兼容问题，需要额外升级。如下截图。
+每个EKS版本都有其推荐（默认）的VPC CNI版本，以及一组兼容的可选版本。可通过如下命令查询指定EKS版本下VPC CNI的所有可用版本，其中`defaultVersion`为`True`的即为该EKS版本的默认版本：
+
+```shell
+aws eks describe-addon-versions --addon-name vpc-cni --kubernetes-version 1.36 --region ap-southeast-1 --query "addons[0].addonVersions[].{version:addonVersion,default:compatibilities[0].defaultVersion}" --output table
+```
+
+截至本文编写时，EKS 1.36下VPC CNI的默认版本为`v1.22.4-eksbuild.3`，最新可用版本为`v1.23.1-eksbuild.1`。
+
+升级EKS集群时，需要保证VPC CNI等插件的版本与目标Kubernetes版本兼容。如果仅升级控制平面而不同步升级插件，可能出现插件版本与新控制平面不兼容的问题，EKS控制台也会在集群健康检查中给出相应的版本兼容性提示。如下截图。
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/addon/a-02.png)
 
-因此这里不能着急立刻将EKS集群升级，而是需要先升级vpc-cni。下面开始操作。
+因此在升级集群前，建议先将VPC CNI升级到与目标版本兼容的版本。下面开始操作。
 
 ## 二、在EKS控制台以Addon的方式升级插件
 
@@ -74,7 +105,7 @@ This may be due to the current user or role not having Kubernetes RBAC permissio
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/addon/a-05.png)
 
-在`Amazon VPC CNI`的详情位置，选择插件版本为最新（截止本文编写时候是1.15版本），然后在`Select IAM role`位置保持默认值。点击`Optional configuration settings`展开可选设置的菜单。然后向下滚动页面。如下截图。
+在`Amazon VPC CNI`的详情位置，选择插件版本为最新（截止本文编写时候是`v1.23.1-eksbuild.1`版本），然后在`Select IAM role`位置保持默认值。点击`Optional configuration settings`展开可选设置的菜单。然后向下滚动页面。如下截图。
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/addon/a-06.png)
 

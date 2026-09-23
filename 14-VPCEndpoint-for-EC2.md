@@ -1,5 +1,7 @@
 # 在没有外部网络权限的内部子网使用EKS服务时需要额外配置的VPC Endpoint
 
+> 更新的到 EKS 1.36版本
+
 本文介绍如何在没有外部网络连接的内部子网使用EKS服务。
 
 ## 一、背景
@@ -8,7 +10,7 @@
 
 在使用EKS服务时候，EKS集群的Node节点需要连接EC2、EKS、ECR、ELB等若干AWS服务，进行Node节点创建、镜像管理等操作，而这一步是依赖外网访问权限的。在没有外部网络权限的内部子网使用EKS服务时，因为没有外网权限，无法连接到AWS位于互联网上的服务端点，因此会遇到错误导致节点不能正常拉起。
 
-由于内部网络不能提供对外路由，因此对这几个AWS服务的API调用需要配置VPC Endpoint来实现。在内部网络使用EKS需要配置EC2、EKS、ECR、S3、ELB、CloudWatch、STS等基础（X-ray根据实际情况配置）。
+由于内部网络不能提供对外路由，因此对这几个AWS服务的API调用需要配置VPC Endpoint来实现。在内部网络使用EKS需要配置EC2、EKS、ECR、S3、ELB、CloudWatch、STS等基础服务的Endpoint。此外，如果通过EKS Pod Identity为工作负载分发IAM权限，需要额外配置EKS Auth（服务名eks-auth）的Endpoint；如果通过IAM Roles for Service Accounts（IRSA，即为服务账户配置IAM角色）方式分发权限，则需要在STS Endpoint之外额外配置EKS OIDC（服务名oidc-eks）的Endpoint。X-Ray、SSM等其余服务根据实际需求配置。
 
 ### 2、需要哪几种VPC Endpoint
 
@@ -18,12 +20,16 @@
 |---|---|---|---|---|
 |EC2|com.amazonaws.ap-southeast-1.ec2|Interface|是|是|
 |EKS|com.amazonaws.ap-southeast-1.eks|Interface|是|是|
+|EKS Auth|com.amazonaws.ap-southeast-1.eks-auth|Interface|是|是|
+|EKS OIDC|com.amazonaws.ap-southeast-1.oidc-eks|Interface|是|是|
 |ECR|com.amazonaws.ap-southeast-1.ecr.api|Interface|是|是|
 |ECR|com.amazonaws.ap-southeast-1.ecr.dkr|Interface|是|是|
 |ELB|com.amazonaws.ap-southeast-1.elasticloadbalancing|Interface|是|是|
 |CloudWatch|com.amazonaws.ap-southeast-1.logs|Interface|是|是|
 |STS|com.amazonaws.ap-southeast-1.sts|Interface|是|是|
 |S3|com.amazonaws.ap-southeast-1.s3|Gateway|不需要解析|不需要解析|
+
+上表中的EKS Auth与EKS OIDC两项是为在纯内网环境使用凭证分发机制而配置的。EKS Pod Identity依赖EKS Auth服务为Pod签发临时凭证，因此启用Pod Identity时必须配置eks-auth的Endpoint；IRSA方式则依赖STS完成`AssumeRoleWithWebIdentity`调用，并需要从VPC内部访问集群的OIDC发现端点，因此除STS外还需配置oidc-eks的Endpoint。需要注意，这两个Endpoint的私有DNS域名使用`.api.aws`后缀（例如`eks-auth.ap-southeast-1.api.aws`与`oidc-eks.ap-southeast-1.api.aws`），与其余服务使用的`.amazonaws.com`后缀不同，在使用自建DNS配置解析时需按实际域名填写。
 
 ### 3、VPC Endpoint的域名解析
 
@@ -37,7 +43,7 @@
 
 ## 二、配置EC2服务的VPC Endpoint
 
-类型为Interface的VPC Endpoint包括上表中的EC2、EKS、ECR、ELB、CloudWatch、STS服务，配置过程如下。
+类型为Interface的VPC Endpoint包括上表中的EC2、EKS、EKS Auth、EKS OIDC、ECR、ELB、CloudWatch、STS等服务，配置过程如下。
 
 ### 1、创建VPC Endpoint
 
@@ -173,13 +179,15 @@ aws ec2 describe-instances
 由于这几种服务类型也是Interface VPC Endpoint，配置全流程不再赘述。这里附上创建VPC Endpoint时候要搜索查找的服务名称：
 
 - com.amazonaws.ap-southeast-1.eks
+- com.amazonaws.ap-southeast-1.eks-auth
+- com.amazonaws.ap-southeast-1.oidc-eks
 - com.amazonaws.ap-southeast-1.ecr.api
 - com.amazonaws.ap-southeast-1.ecr.dkr
 - com.amazonaws.ap-southeast-1.elasticloadbalancing
 - com.amazonaws.ap-southeast-1.logs
 - com.amazonaws.ap-southeast-1.sts
 
-注意以上几个名字不是域名解析，是在配置VPC Endpoint界面上要搜索的服务名称。配置好后效果如下：
+注意以上几个名字不是域名解析，是在配置VPC Endpoint界面上要搜索的服务名称。其中eks-auth与oidc-eks属于条件性配置项，仅在分别使用EKS Pod Identity与IRSA时才需要创建，如果集群不使用这两种凭证分发机制可以不配置。配置好后效果如下：
 
 ![](https://blogimg.bitipcman.com/workshop/eks101/endpoint/pe-21.png)
 
@@ -189,6 +197,8 @@ aws ec2 describe-instances
 |---|---|---|
 |EC2|ec2.ap-southeast-1.amazonaws.com|vpce-03f7e3e94e933f477-jzzbvb9s.ec2.ap-southeast-1.vpce.amazonaws.com|
 |EKS|eks.ap-southeast-1.amazonaws.com|vpce-03ff04f80322c97e8-f71svdwb.eks.ap-southeast-1.vpce.amazonaws.com|
+|EKS Auth|eks-auth.ap-southeast-1.api.aws|vpce-xxxxxxxxxxxxxxxxx-xxxxxxxx.eks-auth.ap-southeast-1.vpce.amazonaws.com|
+|EKS OIDC|oidc-eks.ap-southeast-1.api.aws|vpce-xxxxxxxxxxxxxxxxx-xxxxxxxx.oidc-eks.ap-southeast-1.vpce.amazonaws.com|
 |ECR-API|api.ecr.ap-southeast-1.amazonaws.com|vpce-0a66a4c16d2ad4bdf-a4oezego.api.ecr.ap-southeast-1.vpce.amazonaws.com|
 |ECR-DKR|*.dkr.ecr.ap-southeast-1.amazonaws.com|vpce-052964fb1bab4d105-ewqgfa9t.dkr.ecr.ap-southeast-1.vpce.amazonaws.com|
 |ELB|elasticloadbalancing.ap-southeast-1.amazonaws.com|vpce-05ccb048eccd2287e-locfnd3m.elasticloadbalancing.ap-southeast-1.vpce.amazonaws.com|
@@ -271,6 +281,10 @@ aws s3 ls
 
 ## 六、参考文档
 
-Private cluster requirements
+在没有外部网络访问的情况下部署私有集群，包含Pod所需VPC Endpoint的完整清单：
 
 [https://docs.aws.amazon.com/eks/latest/userguide/private-clusters.html]()
+
+通过AWS PrivateLink访问Amazon EKS，包含EKS Auth（eks-auth）与集群OIDC（oidc-eks）Endpoint的说明：
+
+[https://docs.aws.amazon.com/eks/latest/userguide/vpc-interface-endpoints.html]()
