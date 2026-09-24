@@ -31,6 +31,7 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
 spec:
+  loadBalancerClass: service.k8s.aws/nlb
   selector:
     app: nginx-mixed-ec2
   type: LoadBalancer
