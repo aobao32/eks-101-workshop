@@ -1,0 +1,27 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iperf2
+  labels:
+    app: iperf2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iperf2
+  template:
+    metadata:
+      labels:
+        app: iperf2
+    spec:
+      nodeSelector:
+        Name: perf-ng
+      containers:
+      - name: iperf2
+        image: <account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/iperf2:2.1.9
+        ports:
+        - containerPort: 5001
+          protocol: TCP
+        - containerPort: 5001
+          protocol: UDP
