@@ -1,0 +1,46 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eksworkshop
+  region: ap-southeast-1
+  version: "1.36"
+
+vpc:
+  clusterEndpoints:
+    publicAccess:  true
+    privateAccess: true
+
+kubernetesNetworkConfig:
+  serviceIPv4CIDR: 10.50.0.0/24
+
+managedNodeGroups:
+  - name: perf-ng
+    labels:
+      Name: perf-ng
+    instanceType: c6in.8xlarge
+    availabilityZones: ["ap-southeast-1b"]
+    minSize: 2
+    desiredCapacity: 2
+    maxSize: 2
+    volumeType: gp3
+    volumeSize: 100
+    volumeIOPS: 3000
+    volumeThroughput: 125
+    tags:
+      nodegroup-name: perf-ng
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        certManager: true
+        efs: true
+        ebs: true
+        awsLoadBalancerController: true
+        xRay: true
+        cloudWatch: true
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+    logRetentionInDays: 30
